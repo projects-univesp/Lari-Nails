@@ -1,0 +1,26 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Alex+Brush&family=Montserrat:wght@200;300;400;500;600;700&display=swap');
+
+.font-script {
+  font-family: 'Alex Brush', cursive;
+}
+
+.font-brand {
+  font-family: 'Montserrat', sans-serif;
+}
+
+:root {
+  --brand-pink: #FF85C2;
+  --brand-pink-dark: #e86ba8;
+  --brand-pink-light: #ffb8da;
+  --brand-pink-bg: #fff0f7;
+}
+
+/* Oculta scrollbar mas permite scroll */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
