@@ -1,78 +1,101 @@
-# React + TypeScript + Vite
+# Lari Nails Web (Front-End)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Interface web e mobile-first do sistema **Lari Nails**, desenvolvida em **React 19**, **TypeScript**, **Tailwind CSS v4**, **TanStack Query** e **Lucide Icons**, organizada sob os princípios de **Arquitetura Hexagonal (Ports & Adapters)**, **Domain-Driven Design (DDD)** e **Test-Driven Development (TDD)**.
 
-Currently, two official plugins are available:
+O front-end comunica-se nativamente com a API NestJS ([`lari-nails-api`](../lari-nails-api)) através de autenticação segura baseada em cookies HTTP-Only JWT, suporte a Correlation ID e gerenciamento de estado de servidor reativo.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## 🏛️ Arquitetura
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+O código segue estrita separação entre regras de negócio e camada visual:
 
-Note: This will impact Vite dev & build performances.
-You can also try [the experimental native React Compiler support in plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md#rust-react-compiler) by using `compiler: true` in the plugin options instead of using the Babel plugin.
+- **`src/core`**: Núcleo puro em TypeScript, desacoplado de React e de bibliotecas de terceiros.
+  - **`domain`**: Entidades ricas com validação de regras invariantes (`ClientEntity`, `AuthUser`) e interfaces de portas de saída (`IClientRepository`, `IAuthRepository`).
+  - **`application`**: Casos de uso (`LoginUseCase`, `ListClientsUseCase`, etc.) acompanhados de testes unitários automatizados com **Vitest**.
+- **`src/infra`**: Adaptadores secundários de I/O.
+  - **`http`**: `HttpClient` centralizado com `credentials: 'include'` e `X-Correlation-Id`.
+  - **`auth`**: `HttpAuthRepository` com suporte a autenticação real e fallback mock para validação local.
+  - **`clients`**: `HttpClientRepository` para sincronização em tempo real de clientes com a API.
+- **`src/presentation`**: Adaptadores primários de interface.
+  - **`context` & `hooks`**: `useAuth()` e `useClients()` com cache reativo via **TanStack Query**.
+  - **`screens` & `components`**: Componentes e telas com visual preservado em Tailwind CSS.
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## ⚙️ Variáveis de Ambiente
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+Copie o arquivo de exemplo para criar o seu `.env`:
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+cp .env.example .env
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+| Variável | Padrão | Descrição |
+|---|---|---|
+| `PORT` | `5173` | Porta exposta no host para a aplicação web |
+| `IMAGE_NAME` | `lari-nails-web` | Nome da imagem Docker gerada |
+| `VERSION` | `latest` | Tag da imagem Docker |
+| `VITE_API_BASE_URL` | `http://localhost:3000` | URL da API NestJS acessível pelo navegador do usuário |
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+---
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## 🐳 Executando com Docker e Docker Compose
 
+O front-end e o back-end compartilham a mesma rede Docker bridge (**`lari-nails-net`**).
+
+### 1. Subir o Back-End e Banco de Dados (na pasta lari-nails-api):
+```bash
+cd ../lari-nails-api
+docker compose up -d
 ```
+
+### 2. Subir o Front-End (na pasta Lari-Nails):
+```bash
+cd ../Lari-Nails
+docker compose up -d --build
+```
+
+Acesse a aplicação no navegador em: **`http://localhost:5173`**.
+
+---
+
+## 💻 Executando em Modo de Desenvolvimento (Local)
+
+### Pré-requisitos
+- Node.js 24.x
+- npm 11.x
+
+```bash
+# 1. Instalar dependências
+npm install
+
+# 2. Iniciar servidor Vite de desenvolvimento
+npm run dev
+```
+
+---
+
+## 🧪 Testes e Qualidade
+
+```bash
+# Executar todos os testes unitários (Vitest)
+npm test
+
+# Executar testes em modo watch
+npm run test:watch
+
+# Checagem de linter e formatação (ESLint flat config)
+npm run lint
+
+# Build de produção do Vite
+npm run build
+```
+
+---
+
+## 🔑 Credenciais para Validação Rápida (Modo Mock / Offline)
+
+Caso deseje testar a interface sem iniciar o banco de dados:
+- **E-mail:** `admin@larinails.com`
+- **Senha:** `admin123`

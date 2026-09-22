@@ -1,0 +1,21 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3000}
+    image: ${IMAGE_NAME:-lari-nails-web}:${VERSION:-latest}
+    container_name: lari-nails-web
+    restart: unless-stopped
+    ports:
+      - "${PORT:-5173}:${PORT:-5173}"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-5173}
+    networks:
+      - lari-nails-net
+
+networks:
+  lari-nails-net:
+    name: lari-nails-net
