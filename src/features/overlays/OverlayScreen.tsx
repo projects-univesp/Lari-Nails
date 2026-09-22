@@ -5,6 +5,7 @@ import { AgendaBlockScreen } from '../agenda/AgendaBlockScreen';
 import { AppointmentDetailsScreen } from '../appointments/AppointmentDetailsScreen';
 import { ClientProfileScreen } from '../clients/ClientProfileScreen';
 import { EditClientScreen } from '../clients/EditClientScreen';
+import { AddClientScreen } from '../clients/AddClientScreen';
 import { ServiceCatalogScreen } from '../services/ServiceCatalogScreen';
 import { AddServiceScreen } from '../services/AddServiceScreen';
 import { BusinessHoursScreen } from '../settings/BusinessHoursScreen';
@@ -14,6 +15,7 @@ import { CheckoutOverlay } from './CheckoutOverlay';
 import { BotCustomizationScreen } from '../settings/BotCustomizationScreen';
 import { ForgotPasswordScreen } from '../auth/ForgotPasswordScreen';
 import type { ScreenStackItem, ScreenOpenHandler, Appointment, Client, AgendaBlock } from '../../types';
+import type { ClientEntity } from '../../core/clients/domain/client.entity';
 
 interface OverlayScreenProps {
   screen: ScreenStackItem;
@@ -62,9 +64,12 @@ export const OverlayScreen: React.FC<OverlayScreenProps> = ({
       )}
       {screen.name === 'edit_client' && (
         <EditClientScreen
-          client={screen.data as Client | undefined}
+          client={screen.data as (Client | ClientEntity) | undefined}
           onClose={onClose}
         />
+      )}
+      {screen.name === 'add_client' && (
+        <AddClientScreen onClose={onClose} />
       )}
       {screen.name === 'service_catalog' && (
         <ServiceCatalogScreen onClose={onClose} onOpenScreen={onOpenScreen} />

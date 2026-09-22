@@ -1,48 +1,23 @@
 import React, { useState } from 'react';
-import { Tag, Trash2 } from 'lucide-react';
+import { Tag } from 'lucide-react';
 import { ScreenHeader } from '../../components/common/ScreenHeader';
 import { useClients } from '../../presentation/hooks/useClients';
 import { useToast } from '../../context/ToastContext';
-import type { ClientEntity } from '../../core/clients/domain/client.entity';
 
-interface ClientLikeData {
-  id?: string;
-  name?: string;
-  nome?: string;
-  phone?: string;
-  telefone?: string;
-  tags?: string[];
-  lastVisit?: string;
-  bday?: string;
-}
-
-interface EditClientScreenProps {
-  client?: ClientEntity | ClientLikeData;
+interface AddClientScreenProps {
   onClose: () => void;
-  onSave?: (updatedClient: ClientLikeData | ClientEntity) => void;
 }
 
 const DEFAULT_TAGS = ['VIP', 'Frequente', 'Nova', 'Devedora', 'Problemática'];
 
-export const EditClientScreen: React.FC<EditClientScreenProps> = ({
-  client,
-  onClose,
-  onSave,
-}) => {
-  const { updateClient, deleteClient, isUpdating } = useClients();
+export const AddClientScreen: React.FC<AddClientScreenProps> = ({ onClose }) => {
+  const { createClient, isCreating } = useClients();
   const { showToast } = useToast();
 
-  const c = client as (ClientEntity & ClientLikeData) | undefined;
-  const id = c?.id;
-  const initialName = c?.nome || c?.name || '';
-  const initialPhone = c?.telefone || c?.phone || '';
-  const initialBday = c?.bday || '';
-  const initialTags = c?.tags || ['VIP'];
-
-  const [name, setName] = useState(initialName);
-  const [phone, setPhone] = useState(initialPhone);
-  const [bday, setBday] = useState(initialBday);
-  const [selectedTags, setSelectedTags] = useState<string[]>(initialTags);
+  const [nome, setNome] = useState('');
+  const [telefone, setTelefone] = useState('');
+  const [bday, setBday] = useState('');
+  const [selectedTags, setSelectedTags] = useState<string[]>(['Nova']);
 
   const toggleTag = (tag: string) => {
     if (selectedTags.includes(tag)) {
@@ -54,48 +29,25 @@ export const EditClientScreen: React.FC<EditClientScreenProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!id) {
-      showToast('Cliente não possui ID válido para edição na API', 'warning');
-      onClose();
-      return;
-    }
-
     try {
-      const updated = await updateClient({
-        id,
-        nome: name,
-        telefone: phone,
+      await createClient({
+        nome,
+        telefone,
+        status: 'ativo',
+        totalFaltas: 0,
         tags: selectedTags,
         bday: bday || undefined,
       });
-
-      showToast('Dados da cliente atualizados com sucesso!', 'success');
-      onSave?.(updated);
+      showToast('🎉 Cliente cadastrada com sucesso!', 'success');
       onClose();
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Erro ao atualizar dados', 'error');
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!id) {
-      onClose();
-      return;
-    }
-    if (window.confirm(`Deseja desativar ${name}?`)) {
-      try {
-        await deleteClient(id);
-        showToast('Cliente desativada!', 'success');
-        onClose();
-      } catch (err) {
-        showToast(err instanceof Error ? err.message : 'Erro ao desativar', 'error');
-      }
+      showToast(err instanceof Error ? err.message : 'Erro ao cadastrar cliente', 'error');
     }
   };
 
   return (
     <>
-      <ScreenHeader title="Editar Cliente" onClose={onClose} />
+      <ScreenHeader title="Nova Cliente" onClose={onClose} />
       <main className="flex-1 overflow-y-auto p-5 pb-24">
         <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4 bg-white p-5 rounded-3xl shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
@@ -105,8 +57,9 @@ export const EditClientScreen: React.FC<EditClientScreenProps> = ({
               </label>
               <input
                 type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                placeholder="Ex: Amanda Ferreira"
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
                 className="w-full px-4 py-3.5 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-[#FF85C2] text-gray-700 font-medium"
                 required
                 minLength={3}
@@ -119,8 +72,9 @@ export const EditClientScreen: React.FC<EditClientScreenProps> = ({
               </label>
               <input
                 type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                placeholder="(11) 98765-4321"
+                value={telefone}
+                onChange={(e) => setTelefone(e.target.value)}
                 className="w-full px-4 py-3.5 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-[#FF85C2] text-gray-700 font-medium"
                 required
               />
@@ -128,7 +82,7 @@ export const EditClientScreen: React.FC<EditClientScreenProps> = ({
 
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-widest text-gray-500 px-1">
-                Aniversário
+                Aniversário (Opcional)
               </label>
               <input
                 type="text"
@@ -174,18 +128,17 @@ export const EditClientScreen: React.FC<EditClientScreenProps> = ({
           <div className="pt-4 flex gap-4">
             <button
               type="button"
-              onClick={handleDelete}
-              aria-label="Excluir ou cancelar"
-              className="p-4 rounded-2xl bg-white border border-red-100 text-red-500 hover:bg-red-50 transition-colors"
+              onClick={onClose}
+              className="p-4 rounded-2xl bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors text-sm font-bold uppercase tracking-wider"
             >
-              <Trash2 size={24} />
+              Cancelar
             </button>
             <button
               type="submit"
-              disabled={isUpdating}
+              disabled={isCreating}
               className="flex-1 py-4 rounded-2xl bg-[#FF85C2] text-white font-bold text-sm uppercase tracking-widest shadow-[0_4px_15px_rgba(255,133,194,0.3)] active:scale-[0.98] transition-transform disabled:opacity-70"
             >
-              {isUpdating ? 'Salvando...' : 'Salvar Alterações'}
+              {isCreating ? 'Cadastrando...' : 'Cadastrar Cliente'}
             </button>
           </div>
         </form>

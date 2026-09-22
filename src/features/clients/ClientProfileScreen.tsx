@@ -1,12 +1,26 @@
 import React from 'react';
-import { Edit3, MessageCircle, CalendarDays as CalendarDaysIcon, CheckCircle2, Clock } from 'lucide-react';
+import { Edit3, MessageCircle, CalendarDays as CalendarDaysIcon, CheckCircle2, Clock, Trash2 } from 'lucide-react';
 import { ScreenHeader } from '../../components/common/ScreenHeader';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../../context/ToastContext';
-import type { ScreenOpenHandler, Client } from '../../types';
+import { useClients } from '../../presentation/hooks/useClients';
+import type { ClientEntity } from '../../core/clients/domain/client.entity';
+import type { ScreenOpenHandler } from '../../types';
+
+interface ClientLikeData {
+  id?: string;
+  name?: string;
+  nome?: string;
+  phone?: string;
+  telefone?: string;
+  tags?: string[];
+  lastVisit?: string;
+  bday?: string;
+  totalFaltas?: number;
+}
 
 interface ClientProfileScreenProps {
-  client?: Client;
+  client?: ClientEntity | ClientLikeData;
   onClose: () => void;
   onOpenScreen: ScreenOpenHandler;
 }
@@ -18,19 +32,35 @@ export const ClientProfileScreen: React.FC<ClientProfileScreenProps> = ({
 }) => {
   const { clientHistory } = useData();
   const { showToast } = useToast();
+  const { deleteClient } = useClients();
 
-  const currentClient: Client = client || {
-    name: 'Cliente',
-    phone: '(11) 99999-9999',
-    tags: ['VIP'],
-    lastVisit: 'Recente',
-    bday: '01/01',
-  };
+  const c = client as (ClientEntity & ClientLikeData) | undefined;
+  const id = c?.id;
+  const name = c?.nome || c?.name || 'Cliente';
+  const phone = c?.telefone || c?.phone || '(11) 99999-9999';
+  const tags: string[] = c?.tags || ['VIP'];
+  const totalFaltas: number = c?.totalFaltas || 0;
 
   const handleWhatsApp = () => {
-    const cleanPhone = currentClient.phone.replace(/\D/g, '');
+    const cleanPhone = phone.replace(/\D/g, '');
     window.open(`https://wa.me/55${cleanPhone}`, '_blank');
     showToast('💬 Abrindo conversa no WhatsApp...', 'info');
+  };
+
+  const handleDelete = async () => {
+    if (!id) {
+      showToast('Cliente sem ID para exclusão', 'error');
+      return;
+    }
+    if (window.confirm(`Deseja realmente inativar a cliente ${name}?`)) {
+      try {
+        await deleteClient(id);
+        showToast('Cliente desativada com sucesso!', 'success');
+        onClose();
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : 'Erro ao desativar cliente', 'error');
+      }
+    }
   };
 
   return (
@@ -39,30 +69,42 @@ export const ClientProfileScreen: React.FC<ClientProfileScreenProps> = ({
         title="Perfil"
         onClose={onClose}
         rightAction={
-          <button
-            type="button"
-            onClick={() => onOpenScreen('edit_client', currentClient)}
-            className="text-gray-400 hover:text-[#FF85C2] transition-colors p-2 cursor-pointer"
-            aria-label="Editar cliente"
-          >
-            <Edit3 size={20} />
-          </button>
+          <div className="flex items-center gap-1">
+            {id && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="text-gray-400 hover:text-red-500 transition-colors p-2 cursor-pointer"
+                aria-label="Excluir cliente"
+              >
+                <Trash2 size={18} />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => onOpenScreen('edit_client', client)}
+              className="text-gray-400 hover:text-[#FF85C2] transition-colors p-2 cursor-pointer"
+              aria-label="Editar cliente"
+            >
+              <Edit3 size={20} />
+            </button>
+          </div>
         }
       />
       <main className="flex-1 overflow-y-auto pb-24">
         <div className="bg-white px-6 pt-6 pb-8 rounded-b-[2.5rem] shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-col items-center relative">
           <div className="w-24 h-24 rounded-full bg-[var(--brand-pink-bg)] text-[#FF85C2] font-light flex items-center justify-center text-4xl mb-4 border-2 border-[var(--brand-pink-light)]">
-            {currentClient.name.charAt(0)}
+            {name.charAt(0).toUpperCase()}
           </div>
-          <h2 className="text-2xl font-bold text-gray-800">{currentClient.name}</h2>
-          <p className="text-gray-400 font-medium mt-1">{currentClient.phone}</p>
+          <h2 className="text-2xl font-bold text-gray-800">{name}</h2>
+          <p className="text-gray-400 font-medium mt-1">{phone}</p>
 
-          <div className="flex gap-1.5 mt-3">
-            {currentClient.tags.map((tag) => (
+          <div className="flex gap-1.5 mt-3 flex-wrap justify-center">
+            {tags.map((tag) => (
               <span
                 key={tag}
                 className={`text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider ${
-                  tag === 'Devedora'
+                  tag === 'Devedora' || tag === 'Problemática'
                     ? 'bg-red-50 text-red-600'
                     : tag === 'VIP'
                     ? 'bg-purple-50 text-purple-600'
@@ -72,6 +114,11 @@ export const ClientProfileScreen: React.FC<ClientProfileScreenProps> = ({
                 {tag}
               </span>
             ))}
+            {totalFaltas > 0 && (
+              <span className="text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider bg-amber-50 text-amber-600">
+                {totalFaltas} {totalFaltas === 1 ? 'Falta' : 'Faltas'}
+              </span>
+            )}
           </div>
 
           <div className="flex gap-4 mt-8 w-full">
@@ -84,7 +131,7 @@ export const ClientProfileScreen: React.FC<ClientProfileScreenProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => onOpenScreen('add_appointment')}
+              onClick={() => onOpenScreen('add_appointment', { client: name })}
               className="flex-1 bg-[#FAFAFA] border border-gray-100 text-gray-700 py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform hover:bg-gray-100 uppercase tracking-wider shadow-sm cursor-pointer"
             >
               <CalendarDaysIcon size={18} /> Agendar
@@ -96,9 +143,9 @@ export const ClientProfileScreen: React.FC<ClientProfileScreenProps> = ({
         <div className="px-5 mt-6">
           <div className="flex items-center justify-between mb-4 px-1">
             <h3 className="font-bold text-gray-800 text-sm uppercase tracking-widest">
-              Histórico de Agendamentos
+              Histórico de Atendimentos
             </h3>
-            <span className="text-[10px] text-gray-400 font-medium">Status Financeiro</span>
+            <span className="text-[10px] text-gray-400 font-medium">Status</span>
           </div>
 
           <div className="space-y-3">
@@ -109,8 +156,19 @@ export const ClientProfileScreen: React.FC<ClientProfileScreenProps> = ({
                 <button
                   key={item.id || idx}
                   type="button"
-                  onClick={() => item.paymentStatus === 'pendente' && onOpenScreen('checkout', { client: currentClient.name, service: item.service, date: item.date, time: '12:00', status: 'concluido', price: item.amount, historyId: item.id })}
-                  className="bg-white p-4 rounded-3xl flex justify-between items-center shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-transparent hover:border-gray-50"
+                  onClick={() =>
+                    item.paymentStatus === 'pendente' &&
+                    onOpenScreen('checkout', {
+                      client: name,
+                      service: item.service,
+                      date: item.date,
+                      time: '12:00',
+                      status: 'concluido',
+                      price: item.amount,
+                      historyId: item.id,
+                    })
+                  }
+                  className="bg-white p-4 rounded-3xl flex justify-between items-center shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-transparent hover:border-gray-50 w-full text-left"
                 >
                   <div className="flex items-center gap-3">
                     <div

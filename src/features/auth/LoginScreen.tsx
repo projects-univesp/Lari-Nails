@@ -1,14 +1,38 @@
 import React, { useState } from 'react';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { ButterflyIcon } from '../../components/common/ButterflyIcon';
+import { useAuth } from '../../presentation/hooks/useAuth';
+import { useToast } from '../../context/ToastContext';
 
 interface LoginScreenProps {
-  onLogin: (e: React.FormEvent) => void;
   onForgotPassword?: () => void;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onForgotPassword }) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({ onForgotPassword }) => {
+  const { login } = useAuth();
+  const { showToast } = useToast();
+  const [email, setEmail] = useState('admin@larinails.com');
+  const [senha, setSenha] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+    setIsSubmitting(true);
+
+    try {
+      await login({ email, senha });
+      showToast('🌸 Bem-vinda de volta!', 'success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Credenciais inválidas';
+      setErrorMessage(msg);
+      showToast(msg, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div
@@ -36,14 +60,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onForgotPassw
           </div>
         </div>
 
-        <form onSubmit={onLogin} className="w-full space-y-4">
+        {errorMessage && (
+          <div className="w-full mb-4 p-3 rounded-2xl bg-red-500/80 border border-white/40 text-white text-xs font-medium text-center backdrop-blur-sm">
+            {errorMessage}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="w-full space-y-4">
           <div className="relative">
             <Mail className="absolute left-4 top-3.5 text-pink-200" size={20} />
             <input
               type="email"
               placeholder="E-mail"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full pl-12 pr-4 py-3.5 rounded-2xl bg-white/20 border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white focus:bg-white/30 backdrop-blur-sm transition-all"
-              defaultValue="contato@larissamachado.com"
               required
             />
           </div>
@@ -53,8 +84,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onForgotPassw
             <input
               type={showPassword ? 'text' : 'password'}
               placeholder="Senha"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
               className="w-full pl-12 pr-12 py-3.5 rounded-2xl bg-white/20 border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white focus:bg-white/30 backdrop-blur-sm transition-all"
-              defaultValue="123456"
               required
             />
             <button
@@ -79,9 +111,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onForgotPassw
 
           <button
             type="submit"
-            className="w-full py-4 rounded-2xl bg-white text-[#FF85C2] font-bold text-lg shadow-[0_8px_20px_rgba(0,0,0,0.1)] active:scale-[0.98] transition-transform uppercase tracking-wider cursor-pointer hover:bg-white/95"
+            disabled={isSubmitting}
+            className="w-full py-4 rounded-2xl bg-white text-[#FF85C2] font-bold text-lg shadow-[0_8px_20px_rgba(0,0,0,0.1)] active:scale-[0.98] transition-transform uppercase tracking-wider cursor-pointer hover:bg-white/95 disabled:opacity-70"
           >
-            Entrar
+            {isSubmitting ? 'Autenticando...' : 'Entrar'}
           </button>
         </form>
       </div>

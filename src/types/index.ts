@@ -89,6 +89,7 @@ export type ScreenName =
   | 'appointment_details'
   | 'client_profile'
   | 'edit_client'
+  | 'add_client'
   | 'service_catalog'
   | 'add_service'
   | 'business_hours'
