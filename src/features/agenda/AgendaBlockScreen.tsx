@@ -12,34 +12,50 @@ interface AgendaBlockScreenProps {
 export const AgendaBlockScreen: React.FC<AgendaBlockScreenProps> = ({ block, onClose }) => {
   const { addAgendaBlock, updateAgendaBlock, deleteAgendaBlock } = useData();
   const { showToast } = useToast();
+  const isEditing = Boolean(block?.id);
   const [reason, setReason] = useState(block?.reason || 'Pausa para almoço');
   const [date, setDate] = useState(block?.date === 'Hoje' ? '' : block?.date || '');
   const [startTime, setStartTime] = useState(block?.startTime || '12:00');
   const [endTime, setEndTime] = useState(block?.endTime || '13:00');
+  const [saving, setSaving] = useState(false);
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const value = { reason, date: date || 'Hoje', startTime, endTime };
-    if (block) {
-      updateAgendaBlock({ ...value, id: block.id });
-      showToast('Bloqueio atualizado na agenda.', 'success');
-    } else {
-      addAgendaBlock(value);
-      showToast('Bloqueio criado na agenda.', 'success');
+    const value = { reason, date, startTime, endTime };
+    setSaving(true);
+    try {
+      if (isEditing && block) {
+        await updateAgendaBlock({ ...value, id: block.id });
+        showToast('Bloqueio atualizado na agenda.', 'success');
+      } else {
+        await addAgendaBlock(value);
+        showToast('Bloqueio criado na agenda.', 'success');
+      }
+      onClose();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Falha ao salvar bloqueio.', 'warning');
+    } finally {
+      setSaving(false);
     }
-    onClose();
   };
 
-  const handleDelete = () => {
-    if (!block) return;
-    deleteAgendaBlock(block.id);
-    showToast('Bloqueio removido da agenda.', 'info');
-    onClose();
+  const handleDelete = async () => {
+    if (!isEditing || !block) return;
+    setSaving(true);
+    try {
+      await deleteAgendaBlock(block.id);
+      showToast('Bloqueio removido da agenda.', 'info');
+      onClose();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Falha ao remover bloqueio.', 'warning');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <>
-      <ScreenHeader title={block ? 'Editar Bloqueio' : 'Novo Bloqueio'} onClose={onClose} />
+      <ScreenHeader title={isEditing ? 'Editar Bloqueio' : 'Novo Bloqueio'} onClose={onClose} />
       <main className="flex-1 overflow-y-auto p-5 pb-24">
         <form onSubmit={handleSubmit} className="space-y-5 bg-white p-5 rounded-3xl">
           <div className="space-y-2">
@@ -54,8 +70,8 @@ export const AgendaBlockScreen: React.FC<AgendaBlockScreenProps> = ({ block, onC
             <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Início<input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} required className="mt-2 w-full px-3 py-3 rounded-2xl bg-gray-50 border-none" /></label>
             <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Fim<input type="time" value={endTime} onChange={(event) => setEndTime(event.target.value)} required className="mt-2 w-full px-3 py-3 rounded-2xl bg-gray-50 border-none" /></label>
           </div>
-          <button type="submit" className="w-full py-4 rounded-2xl bg-amber-500 text-white font-bold uppercase tracking-widest">{block ? 'Salvar Bloqueio' : 'Criar Bloqueio'}</button>
-          {block && <button type="button" onClick={handleDelete} className="w-full py-3 rounded-2xl border border-red-100 text-red-500 font-bold">Remover Bloqueio</button>}
+          <button type="submit" disabled={saving} className="w-full py-4 rounded-2xl bg-amber-500 text-white font-bold uppercase tracking-widest">{saving ? 'Salvando...' : isEditing ? 'Salvar Bloqueio' : 'Criar Bloqueio'}</button>
+          {isEditing && <button type="button" disabled={saving} onClick={handleDelete} className="w-full py-3 rounded-2xl border border-red-100 text-red-500 font-bold">Remover Bloqueio</button>}
         </form>
       </main>
     </>

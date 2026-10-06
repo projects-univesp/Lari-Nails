@@ -6,7 +6,7 @@ export type PaymentMethod = 'Pix' | 'Cartão' | 'Dinheiro';
 export type AppointmentSource = 'MANUAL' | 'WHATSAPP_BOT';
 
 export interface Appointment {
-  id?: number;
+  id?: string | number;
   time: string;
   client: string;
   service: string;
@@ -22,7 +22,7 @@ export interface Appointment {
 }
 
 export interface AgendaBlock {
-  id: number;
+  id: string | number;
   reason: string;
   date: string;
   startTime: string;
@@ -30,7 +30,7 @@ export interface AgendaBlock {
 }
 
 export interface PendingAppointment {
-  id: number;
+  id: string;
   name: string;
   service: string;
   date: string;
@@ -52,11 +52,15 @@ export interface Client {
 }
 
 export interface Service {
-  id?: number;
+  id?: string | number;
   name: string;
   duration: string;
   price: string;
   category: string;
+  priceCents?: number;
+  durationMinutes?: number;
+  active?: boolean;
+  description?: string | null;
 }
 
 export interface ClientHistoryItem {

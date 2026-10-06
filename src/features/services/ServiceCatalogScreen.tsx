@@ -13,11 +13,12 @@ export const ServiceCatalogScreen: React.FC<ServiceCatalogScreenProps> = ({
   onClose,
   onOpenScreen,
 }) => {
-  const { services } = useData();
+  const { services, operationsError } = useData();
   return (
     <>
       <ScreenHeader title="Catálogo" onClose={onClose} />
       <main className="flex-1 overflow-y-auto p-5 space-y-4 pb-24">
+        {operationsError && <p role="alert" className="text-sm text-red-600">{operationsError}</p>}
         <button
           type="button"
           onClick={() => onOpenScreen('add_service')}
@@ -42,6 +43,7 @@ export const ServiceCatalogScreen: React.FC<ServiceCatalogScreenProps> = ({
                   <span className="flex items-center gap-1 text-[#FF85C2] bg-[var(--brand-pink-bg)] px-2 py-0.5 rounded-md">
                     {svc.category}
                   </span>
+                  {!svc.active && <span className="text-amber-600">Inativo</span>}
                 </div>
               </div>
               <div className="font-bold text-gray-700 text-lg">{svc.price}</div>
@@ -52,4 +54,3 @@ export const ServiceCatalogScreen: React.FC<ServiceCatalogScreenProps> = ({
     </>
   );
 };
-

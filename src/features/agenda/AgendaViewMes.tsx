@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
+import { useData } from '../../context/DataContext';
 
 export const AgendaViewMes: React.FC = () => {
-  const [currentMonth, setCurrentMonth] = useState(new Date(2026, 8, 1));
-  const [selectedDay, setSelectedDay] = useState<number>(5);
+  const { appointments, setAgendaRange } = useData();
+  const [currentMonth, setCurrentMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [selectedDay, setSelectedDay] = useState<number>(() => new Date().getDate());
+  const dateKey = (day: number) => `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  useEffect(() => { const year = currentMonth.getFullYear(); const month = String(currentMonth.getMonth() + 1).padStart(2, '0'); const lastDay = new Date(year, currentMonth.getMonth() + 1, 0).getDate(); setAgendaRange(`${year}-${month}-01`, `${year}-${month}-${String(lastDay).padStart(2, '0')}`); }, [currentMonth, setAgendaRange]);
 
   const month = { name: currentMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }), daysInMonth: new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate(), startDay: currentMonth.getDay() };
 
@@ -18,7 +22,7 @@ export const AgendaViewMes: React.FC = () => {
   };
 
   // Monta semanas dinâmicas
-  const totalSlots = 35;
+  const totalSlots = Math.ceil((month.startDay + month.daysInMonth) / 7) * 7;
   const gridCells: (number | null)[] = [];
 
   for (let i = 0; i < month.startDay; i++) {
@@ -67,7 +71,7 @@ export const AgendaViewMes: React.FC = () => {
         <div className="grid grid-cols-7 gap-1">
           {gridCells.map((day, idx) => {
             const isSelected = day === selectedDay;
-            const hasDot = day !== null && (day % 3 === 0 || day === 5 || day === 12);
+            const hasDot = day !== null && appointments.some((item) => item.date === dateKey(day));
 
             return (
               <div key={idx} className="aspect-square flex flex-col items-center justify-center relative p-0.5">

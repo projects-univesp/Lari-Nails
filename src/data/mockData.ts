@@ -46,8 +46,8 @@ export const INITIAL_APPOINTMENTS: Appointment[] = [
 ];
 
 export const INITIAL_PENDING_APPROVALS: PendingAppointment[] = [
-  { id: 1, name: 'Carla Dias', service: 'Alongamento Acrílico', date: 'Hoje', time: '14:00', phone: '(11) 99999-3333' },
-  { id: 2, name: 'Mariana Silva', service: 'Manutenção', date: 'Amanhã', time: '10:00', phone: '(11) 98888-4444' },
+  { id: '1', name: 'Carla Dias', service: 'Alongamento Acrílico', date: 'Hoje', time: '14:00', phone: '(11) 99999-3333' },
+  { id: '2', name: 'Mariana Silva', service: 'Manutenção', date: 'Amanhã', time: '10:00', phone: '(11) 98888-4444' },
 ];
 
 export const INITIAL_CLIENTS: Client[] = [

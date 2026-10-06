@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AlertCircle, ChevronRight, TrendingUp } from 'lucide-react';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { useData } from '../../context/DataContext';
@@ -9,7 +9,10 @@ interface DashboardTabProps {
 }
 
 export const DashboardTab: React.FC<DashboardTabProps> = ({ onOpenScreen }) => {
-  const { appointments, pendingApprovals, transactions } = useData();
+  const { appointments, pendingApprovals, transactions, setAgendaRange, operationsError } = useData();
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  useEffect(() => { setAgendaRange(todayKey, todayKey); }, [setAgendaRange, todayKey]);
 
   // Faturamento recebido dinâmico
   const totalReceived = transactions
@@ -18,6 +21,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ onOpenScreen }) => {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {operationsError && <p role="alert" className="text-sm text-red-600 px-2">{operationsError}</p>}
       {/* Cards de Acesso Rápido (Pendentes & Faturamento) */}
       <div className="grid grid-cols-2 gap-3">
         <div
@@ -65,7 +69,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ onOpenScreen }) => {
       <div className="pt-2">
         <h2 className="text-lg font-bold text-gray-800 mb-5 px-2">Sua agenda de hoje</h2>
         <div className="space-y-4">
-          {appointments.map((apt, idx) => (
+          {appointments.filter((apt) => apt.date === todayKey).map((apt, idx) => (
             <div
               key={apt.id || idx}
               className="flex gap-4 items-stretch group cursor-pointer"
@@ -76,7 +80,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ onOpenScreen }) => {
               </div>
 
               <div className="relative flex-1">
-                {idx !== appointments.length - 1 && (
+                {idx !== appointments.filter((apt) => apt.date === todayKey).length - 1 && (
                   <div className="absolute left-[-17px] top-10 bottom-[-24px] w-0.5 bg-gray-100" />
                 )}
                 <div

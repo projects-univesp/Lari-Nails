@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Clock, Check, AlertCircle } from 'lucide-react';
 import { ScreenHeader } from '../../components/common/ScreenHeader';
 import type { ScreenOpenHandler } from '../../types';
+import { operationsApi } from '../../infra/operations/operations-api';
+import { useToast } from '../../context/ToastContext';
 
 interface DaySchedule {
+  dayOfWeek: number;
   id: string;
   day: string;
   short: string;
@@ -14,14 +17,14 @@ interface DaySchedule {
   lunchEnd: string;
 }
 
-const DEFAULT_SCHEDULE: DaySchedule[] = [
-  { id: 'mon', day: 'Segunda-feira', short: 'Seg', isOpen: true, openTime: '09:00', closeTime: '19:00', lunchStart: '12:00', lunchEnd: '13:00' },
-  { id: 'tue', day: 'Terça-feira', short: 'Ter', isOpen: true, openTime: '09:00', closeTime: '19:00', lunchStart: '12:00', lunchEnd: '13:00' },
-  { id: 'wed', day: 'Quarta-feira', short: 'Qua', isOpen: true, openTime: '09:00', closeTime: '19:00', lunchStart: '12:00', lunchEnd: '13:00' },
-  { id: 'thu', day: 'Quinta-feira', short: 'Qui', isOpen: true, openTime: '09:00', closeTime: '19:00', lunchStart: '12:00', lunchEnd: '13:00' },
-  { id: 'fri', day: 'Sexta-feira', short: 'Sex', isOpen: true, openTime: '09:00', closeTime: '19:00', lunchStart: '12:00', lunchEnd: '13:00' },
-  { id: 'sat', day: 'Sábado', short: 'Sáb', isOpen: true, openTime: '09:00', closeTime: '18:00', lunchStart: '12:00', lunchEnd: '13:00' },
-  { id: 'sun', day: 'Domingo', short: 'Dom', isOpen: false, openTime: '09:00', closeTime: '13:00', lunchStart: '12:00', lunchEnd: '13:00' },
+const DAYS = [
+  { id: 'sun', day: 'Domingo', short: 'Dom' },
+  { id: 'mon', day: 'Segunda-feira', short: 'Seg' },
+  { id: 'tue', day: 'Terça-feira', short: 'Ter' },
+  { id: 'wed', day: 'Quarta-feira', short: 'Qua' },
+  { id: 'thu', day: 'Quinta-feira', short: 'Qui' },
+  { id: 'fri', day: 'Sexta-feira', short: 'Sex' },
+  { id: 'sat', day: 'Sábado', short: 'Sáb' },
 ];
 
 interface BusinessHoursScreenProps {
@@ -30,12 +33,36 @@ interface BusinessHoursScreenProps {
 }
 
 export const BusinessHoursScreen: React.FC<BusinessHoursScreenProps> = ({ onClose }) => {
-  const [schedule, setSchedule] = useState<DaySchedule[]>(DEFAULT_SCHEDULE);
+  const { showToast } = useToast();
+  const [schedule, setSchedule] = useState<DaySchedule[]>([]);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    operationsApi.listBusinessHours().then((days) => {
+      if (!alive) return;
+      setSchedule(days.map((item) => ({
+        dayOfWeek: item.dayOfWeek,
+        ...DAYS[item.dayOfWeek],
+        isOpen: item.isOpen,
+        openTime: item.openTime ?? '', closeTime: item.closeTime ?? '',
+        lunchStart: item.lunchStart ?? '', lunchEnd: item.lunchEnd ?? '',
+      })));
+    }).catch((cause: unknown) => {
+      if (alive) setError(cause instanceof Error ? cause.message : 'Falha ao carregar horários.');
+    }).finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, []);
 
   const toggleDay = (id: string) => {
     setSchedule((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, isOpen: !item.isOpen } : item))
+      prev.map((item) => item.id === id ? {
+        ...item, isOpen: !item.isOpen,
+        openTime: item.openTime || '09:00', closeTime: item.closeTime || '18:00',
+      } : item)
     );
   };
 
@@ -49,18 +76,33 @@ export const BusinessHoursScreen: React.FC<BusinessHoursScreenProps> = ({ onClos
     setSchedule((prev) => prev.map((item) => item.id === id ? { ...item, [field]: value } : item));
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSavedSuccess(true);
-    setTimeout(() => {
+    setSaving(true);
+    setError(null);
+    try {
+      await operationsApi.saveBusinessHours(schedule.map((item) => ({
+        dayOfWeek: item.dayOfWeek,
+        isOpen: item.isOpen,
+        openTime: item.openTime || null, closeTime: item.closeTime || null,
+        lunchStart: item.lunchStart || null, lunchEnd: item.lunchEnd || null,
+      })));
+      setSavedSuccess(true);
+      showToast('Horários salvos com sucesso.', 'success');
       onClose();
-    }, 800);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Falha ao salvar horários.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <>
       <ScreenHeader title="Horários" onClose={onClose} />
       <main className="flex-1 overflow-y-auto p-5 pb-28 space-y-6">
+        {loading && <p className="text-sm text-gray-500">Carregando horários...</p>}
+        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
         {/* Banner Informativo */}
         <div className="bg-gradient-to-r from-pink-50 to-white p-5 rounded-3xl border border-pink-100/70 shadow-[0_2px_15px_rgba(0,0,0,0.02)] flex items-start gap-3.5">
           <div className="p-2.5 rounded-2xl bg-[var(--brand-pink-bg)] text-[#FF85C2] mt-0.5">
@@ -183,6 +225,7 @@ export const BusinessHoursScreen: React.FC<BusinessHoursScreenProps> = ({ onClos
           <button
             type="button"
             onClick={handleSave}
+            disabled={loading || saving || schedule.length !== 7}
             className={`w-full py-4 rounded-2xl font-bold text-sm uppercase tracking-widest transition-all shadow-[0_4px_15px_rgba(255,133,194,0.3)] active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 ${
               savedSuccess
                 ? 'bg-emerald-500 text-white'
@@ -194,7 +237,7 @@ export const BusinessHoursScreen: React.FC<BusinessHoursScreenProps> = ({ onClos
                 <Check size={18} /> Salvo com Sucesso!
               </>
             ) : (
-              'Salvar Alterações'
+              saving ? 'Salvando...' : 'Salvar Alterações'
             )}
           </button>
         </div>
@@ -202,4 +245,3 @@ export const BusinessHoursScreen: React.FC<BusinessHoursScreenProps> = ({ onClos
     </>
   );
 };
-

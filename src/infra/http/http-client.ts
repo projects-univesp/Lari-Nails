@@ -83,6 +83,14 @@ export class HttpClient {
     });
   }
 
+  put<T>(path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
+    return this.request<T>(path, {
+      method: 'PUT',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      headers,
+    });
+  }
+
   delete<T>(path: string, headers?: Record<string, string>): Promise<T> {
     return this.request<T>(path, { method: 'DELETE', headers });
   }

@@ -1,15 +1,17 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronRight, Calendar } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 
 export const AgendaViewSemana: React.FC = () => {
-  const { appointments } = useData();
-  const [weekStart, setWeekStart] = useState(new Date(2026, 8, 1));
+  const { appointments, setAgendaRange } = useData();
+  const [weekStart, setWeekStart] = useState(() => { const today = new Date(); return new Date(today.getFullYear(), today.getMonth(), today.getDate() - today.getDay()); });
+  const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  useEffect(() => { setAgendaRange(dateKey(weekStart), dateKey(new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6))); }, [weekStart, setAgendaRange]);
   const days = useMemo(() => Array.from({ length: 7 }, (_, index) => {
     const date = new Date(weekStart);
     date.setDate(weekStart.getDate() + index);
-    const key = date.toISOString().slice(0, 10);
-    const items = appointments.filter((item) => item.date === key || item.date === 'Hoje');
+    const key = dateKey(date);
+    const items = appointments.filter((item) => item.date === key);
     return { date, count: items.length, pending: items.filter((item) => item.status === 'pendente' || item.status === 'aguardando').length };
   }), [appointments, weekStart]);
   const currentLabel = `${weekStart.toLocaleDateString('pt-BR')} a ${new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6).toLocaleDateString('pt-BR')}`;
@@ -45,8 +47,8 @@ export const AgendaViewSemana: React.FC = () => {
         <div className="space-y-3">
           {days.map((day) => (
             <div
-              key={day.date.toISOString()}
-              className="flex gap-4 p-3 hover:bg-gray-50 rounded-2xl cursor-pointer transition-colors border border-gray-50 last:border-b-0"
+              key={dateKey(day.date)}
+              className="flex gap-4 p-3 hover:bg-gray-50 rounded-2xl transition-colors border border-gray-50 last:border-b-0"
             >
               <div className="w-16 flex flex-col items-center justify-center bg-gray-50 rounded-xl py-2 shrink-0">
                 <span className="text-[10px] uppercase font-bold text-gray-400">{day.date.toLocaleDateString('pt-BR', { weekday: 'short' })}</span>
@@ -68,7 +70,7 @@ export const AgendaViewSemana: React.FC = () => {
                   </div>
                 )}
               </div>
-              <ChevronRight size={18} className="text-gray-300 self-center shrink-0" />
+
             </div>
           ))}
         </div>

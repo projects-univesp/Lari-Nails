@@ -1,282 +1,192 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState } from 'react';
-import {
-  INITIAL_APPOINTMENTS,
-  INITIAL_PENDING_APPROVALS,
-  INITIAL_CLIENTS,
-  INITIAL_TRANSACTIONS,
-  CLIENT_SAMPLE_HISTORY
-  ,INITIAL_SERVICES
-  ,AVAILABLE_CLIENT_TAGS
-} from '../data/mockData';
-import type {
-  Appointment,
-  PendingAppointment,
-  Client,
-  Transaction,
-  AppointmentStatus,
-  PaymentStatus,
-  ClientHistoryItem
-  ,AgendaBlock
-  ,Service
-} from '../types';
-import { INITIAL_AGENDA_BLOCKS } from '../data/mockData';
+import React, { createContext, useCallback, useContext, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { INITIAL_CLIENTS, INITIAL_TRANSACTIONS, CLIENT_SAMPLE_HISTORY, AVAILABLE_CLIENT_TAGS } from '../data/mockData';
+import type { Appointment, PendingAppointment, Client, Transaction, AppointmentStatus, PaymentStatus, ClientHistoryItem, AgendaBlock, Service } from '../types';
+import { operationsApi, type ApiAppointment, type ApiClient, type ApiService } from '../infra/operations/operations-api';
+import { useAuth } from '../presentation/hooks/useAuth';
+
+export interface ServiceInput {
+  name: string;
+  category: string;
+  description: string | null;
+  priceCents: number;
+  durationMinutes: number;
+  active: boolean;
+}
+
+export interface ManualBookingInput {
+  clientId: string;
+  serviceId: string;
+  requestedDate: string;
+  requestedTime: string;
+}
 
 interface DataContextType {
   appointments: Appointment[];
   transactions: Transaction[];
   clients: Client[];
+  bookingClients: ApiClient[];
   services: Service[];
   clientTags: string[];
   pendingApprovals: PendingAppointment[];
   clientHistory: ClientHistoryItem[];
   agendaBlocks: AgendaBlock[];
-  updateAppointmentStatus: (
-    id: number | undefined,
-    status: AppointmentStatus,
-    paymentInfo?: { amount: string; paymentStatus: PaymentStatus; paymentMethod?: string }
-  ) => void;
-  addAppointment: (appointment: Appointment) => void;
-  rescheduleAppointment: (id: number | undefined, date: string, time: string) => void;
-  cancelAppointment: (id: number | undefined) => void;
-  approvePending: (id: number) => void;
-  rejectPending: (id: number) => void;
-  reschedulePending: (id: number, date: string, time: string) => void;
-  denyPending: (id: number, reason: string) => void;
-  addAgendaBlock: (block: Omit<AgendaBlock, 'id'>) => void;
-  updateAgendaBlock: (block: AgendaBlock) => void;
-  deleteAgendaBlock: (id: number) => void;
-  addService: (service: Service) => void;
-  updateService: (service: Service) => void;
+  operationsError: string | null;
+  setAgendaRange: (from: string, to: string) => void;
+  updateAppointmentStatus: (id: string | number | undefined, status: AppointmentStatus, paymentInfo?: { amount: string; paymentStatus: PaymentStatus; paymentMethod?: string }) => void;
+  addAppointment: (input: ManualBookingInput) => Promise<ApiAppointment>;
+  rescheduleAppointment: (id: string | number | undefined, date: string, time: string) => void;
+  cancelAppointment: (id: string | number | undefined) => void;
+  approvePending: (id: string) => Promise<void>;
+  rejectPending: (id: string) => Promise<void>;
+  reschedulePending: (id: string, date: string, time: string) => Promise<void>;
+  denyPending: (id: string, reason: string) => Promise<void>;
+  addAgendaBlock: (block: Omit<AgendaBlock, 'id'>) => Promise<void>;
+  updateAgendaBlock: (block: AgendaBlock) => Promise<void>;
+  deleteAgendaBlock: (id: string | number) => Promise<void>;
+  addService: (service: ServiceInput) => Promise<void>;
+  updateService: (id: string, service: ServiceInput) => Promise<void>;
   updateClient: (client: Client) => void;
   addClientTag: (tag: string) => void;
   removeClientTag: (tag: string) => void;
   updateClientHistoryPayment: (id: number, amount: string, paymentMethod: string) => void;
   updateTransactionPayment: (id: number, paymentStatus: PaymentStatus, paymentMethod?: string) => void;
-  completeAppointmentCheckout: (
-    appointment: Appointment,
-    amount: string,
-    paymentStatus: PaymentStatus,
-    paymentMethod?: string
-  ) => void;
+  completeAppointmentCheckout: (appointment: Appointment, amount: string, paymentStatus: PaymentStatus, paymentMethod?: string) => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
+const formatDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const currentMonth = () => {
+  const now = new Date();
+  return { from: formatDate(new Date(now.getFullYear(), now.getMonth(), 1)), to: formatDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)) };
+};
+const money = (cents: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
+const duration = (minutes: number) => minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)}h${minutes % 60 ? ` ${minutes % 60}min` : ''}`;
+const statusMap: Record<ApiAppointment['status'], AppointmentStatus> = {
+  AGUARDANDO: 'aguardando', CONFIRMADO: 'confirmado', REAGENDAMENTO_SUGERIDO: 'pendente', CANCELADO: 'bloqueado',
+};
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
+  const { currentUser } = useAuth();
+  const queryClient = useQueryClient();
+  const [range, setRange] = useState(currentMonth);
+  const setAgendaRange = useCallback((from: string, to: string) => {
+    setRange((current) => current.from === from && current.to === to ? current : { from, to });
+  }, []);
   const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
   const [clients, setClients] = useState<Client[]>(INITIAL_CLIENTS);
-  const [services, setServices] = useState<Service[]>(INITIAL_SERVICES);
   const [clientTags, setClientTags] = useState<string[]>(AVAILABLE_CLIENT_TAGS);
-  const [pendingApprovals, setPendingApprovals] = useState<PendingAppointment[]>(INITIAL_PENDING_APPROVALS);
-  const [, setDeniedReasons] = useState<Record<number, string>>({});
   const [clientHistory, setClientHistory] = useState<ClientHistoryItem[]>(CLIENT_SAMPLE_HISTORY);
-  const [agendaBlocks, setAgendaBlocks] = useState<AgendaBlock[]>(INITIAL_AGENDA_BLOCKS);
+  const enabled = Boolean(currentUser);
 
-  const updateAppointmentStatus = (
-    id: number | undefined,
-    status: AppointmentStatus,
-    paymentInfo?: { amount: string; paymentStatus: PaymentStatus; paymentMethod?: string }
-  ) => {
-    setAppointments((prev) =>
-      prev.map((apt) =>
-        apt.id === id
-          ? {
-              ...apt,
-              status,
-              ...(paymentInfo && {
-                price: paymentInfo.amount,
-                paymentStatus: paymentInfo.paymentStatus,
-                paymentMethod: paymentInfo.paymentMethod
-              })
-            }
-          : apt
-      )
-    );
+  const servicesQuery = useQuery({ queryKey: ['operations', 'services'], queryFn: operationsApi.listServices, enabled });
+  const clientsQuery = useQuery({ queryKey: ['operations', 'clients'], queryFn: operationsApi.listClients, enabled });
+  const appointmentsQuery = useQuery({ queryKey: ['operations', 'appointments', range.from, range.to], queryFn: () => operationsApi.listAppointments(range.from, range.to), enabled });
+  const pendingQuery = useQuery({ queryKey: ['operations', 'pending'], queryFn: operationsApi.listPending, enabled });
+  const blocksQuery = useQuery({ queryKey: ['operations', 'blocks', range.from, range.to], queryFn: () => operationsApi.listBlocks(range.from, range.to), enabled });
+
+  const serviceRecords = servicesQuery.data ?? [];
+  const clientRecords = clientsQuery.data ?? [];
+  const services: Service[] = serviceRecords.map((item: ApiService) => ({
+    id: item.id, name: item.name, category: item.category, price: money(item.priceCents), duration: duration(item.durationMinutes),
+    priceCents: item.priceCents, durationMinutes: item.durationMinutes, active: item.active, description: item.description,
+  }));
+  const convertAppointment = (item: ApiAppointment): Appointment => ({
+    id: item.id,
+    client: clientRecords.find((client) => client.id === item.clientId)?.nome ?? 'Cliente',
+    service: serviceRecords.find((service) => service.id === item.serviceId)?.name ?? 'Serviço',
+    date: item.requestedDate,
+    time: item.requestedTime,
+    status: statusMap[item.status],
+    price: money(item.priceCents),
+    paymentStatus: 'pendente',
+    source: item.source,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  });
+  const appointments = (appointmentsQuery.data ?? []).map(convertAppointment);
+  const pendingApprovals: PendingAppointment[] = (pendingQuery.data ?? []).map((item) => ({
+    id: item.id,
+    name: clientRecords.find((client) => client.id === item.clientId)?.nome ?? 'Cliente',
+    phone: clientRecords.find((client) => client.id === item.clientId)?.telefone ?? '',
+    service: serviceRecords.find((service) => service.id === item.serviceId)?.name ?? 'Serviço',
+    date: item.requestedDate,
+    time: item.requestedTime,
+    status: 'aguardando',
+    requestedAt: item.createdAt,
+  }));
+  const agendaBlocks: AgendaBlock[] = blocksQuery.data ?? [];
+  const firstError = [servicesQuery.error, clientsQuery.error, appointmentsQuery.error, pendingQuery.error, blocksQuery.error].find(Boolean);
+  const operationsError = firstError instanceof Error ? firstError.message : null;
+
+  const refreshAppointments = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['operations', 'appointments'] }),
+      queryClient.invalidateQueries({ queryKey: ['operations', 'pending'] }),
+    ]);
   };
 
-  const addAppointment = (appointment: Appointment) => {
-    const newApt: Appointment = {
-      ...appointment,
-      id: appointment.id || Date.now()
-    };
-    setAppointments((prev) => [...prev, newApt]);
+  const addAppointment = async (input: ManualBookingInput) => {
+    const created = await operationsApi.createAppointment({ ...input, source: 'MANUAL' });
+    await refreshAppointments();
+    return created;
+  };
+  const decide = async (id: string, input: Parameters<typeof operationsApi.decideAppointment>[1]) => {
+    await operationsApi.decideAppointment(id, input);
+    await refreshAppointments();
+  };
+  const approvePending = (id: string) => decide(id, { status: 'CONFIRMADO' });
+  const denyPending = (id: string, reason: string) => decide(id, { status: 'CANCELADO', reason });
+  const reschedulePending = (id: string, date: string, time: string) => decide(id, { status: 'REAGENDAMENTO_SUGERIDO', proposedDate: date, proposedTime: time });
+  const rejectPending = (id: string) => denyPending(id, 'Pedido recusado');
+
+  const addAgendaBlock = async (block: Omit<AgendaBlock, 'id'>) => {
+    await operationsApi.createBlock(block);
+    await queryClient.invalidateQueries({ queryKey: ['operations', 'blocks'] });
+  };
+  const updateAgendaBlock = async (block: AgendaBlock) => {
+    await operationsApi.updateBlock(String(block.id), block);
+    await queryClient.invalidateQueries({ queryKey: ['operations', 'blocks'] });
+  };
+  const deleteAgendaBlock = async (id: string | number) => {
+    await operationsApi.deleteBlock(String(id));
+    await queryClient.invalidateQueries({ queryKey: ['operations', 'blocks'] });
+  };
+  const addService = async (service: ServiceInput) => {
+    await operationsApi.createService(service);
+    await queryClient.invalidateQueries({ queryKey: ['operations', 'services'] });
+  };
+  const updateService = async (id: string, service: ServiceInput) => {
+    await operationsApi.updateService(id, service);
+    await queryClient.invalidateQueries({ queryKey: ['operations', 'services'] });
   };
 
-  const rescheduleAppointment = (id: number | undefined, date: string, time: string) => {
-    setAppointments((prev) => prev.map((item) => item.id === id ? { ...item, date, time, status: 'confirmado' } : item));
-  };
-
-  const cancelAppointment = (id: number | undefined) => {
-    setAppointments((prev) =>
-      prev.map((apt) => (apt.id === id ? { ...apt, status: 'bloqueado' } : apt))
-    );
-  };
-
-  const approvePending = (id: number) => {
-    const pendingItem = pendingApprovals.find((p) => p.id === id);
-    if (pendingItem) {
-      const newApt: Appointment = {
-        id: Date.now(),
-        client: pendingItem.name,
-        service: pendingItem.service,
-        date: pendingItem.date,
-        time: pendingItem.time,
-        status: 'confirmado',
-        paymentStatus: 'pendente'
-      };
-      setAppointments((prev) => [...prev, newApt]);
-      setPendingApprovals((prev) => prev.filter((p) => p.id !== id));
-    }
-  };
-
-  const rejectPending = (id: number) => {
-    setPendingApprovals((prev) => prev.filter((p) => p.id !== id));
-  };
-
-  const reschedulePending = (id: number, date: string, time: string) => {
-    setPendingApprovals((prev) => prev.map((item) => item.id === id ? { ...item, date, time, proposedDate: date, proposedTime: time, status: 'reagendamento_sugerido' } : item));
-  };
-
-  const denyPending = (id: number, reason: string) => {
-    setDeniedReasons((prev) => ({ ...prev, [id]: reason }));
-    setPendingApprovals((prev) => prev.map((item) => item.id === id ? { ...item, status: 'negado', denialReason: reason } : item));
-  };
-
-  const addAgendaBlock = (block: Omit<AgendaBlock, 'id'>) => {
-    setAgendaBlocks((prev) => [...prev, { ...block, id: Date.now() }]);
-  };
-
-  const updateAgendaBlock = (block: AgendaBlock) => {
-    setAgendaBlocks((prev) => prev.map((item) => item.id === block.id ? block : item));
-  };
-
-  const deleteAgendaBlock = (id: number) => {
-    setAgendaBlocks((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const addService = (service: Service) => setServices((prev) => [...prev, { ...service, id: Date.now() }]);
-  const updateService = (service: Service) => setServices((prev) => prev.map((item) => item.id === service.id ? service : item));
+  const unsupported = () => { throw new Error('Esta ação ainda não está disponível para agendamentos da API'); };
+  const updateAppointmentStatus = (..._args: Parameters<DataContextType['updateAppointmentStatus']>) => { void _args; unsupported(); };
+  const rescheduleAppointment = (..._args: Parameters<DataContextType['rescheduleAppointment']>) => { void _args; unsupported(); };
+  const cancelAppointment = (..._args: Parameters<DataContextType['cancelAppointment']>) => { void _args; unsupported(); };
   const updateClient = (client: Client) => setClients((prev) => prev.map((item) => item.phone === client.phone ? client : item));
   const addClientTag = (tag: string) => setClientTags((prev) => prev.includes(tag) ? prev : [...prev, tag]);
   const removeClientTag = (tag: string) => setClientTags((prev) => prev.filter((item) => item !== tag));
-  const updateClientHistoryPayment = (id: number, amount: string, paymentMethod: string) => {
-    setClientHistory((prev) => prev.map((item) => item.id === id ? { ...item, amount, paymentStatus: 'recebido', paymentMethod } : item));
+  const updateClientHistoryPayment = (id: number, amount: string, paymentMethod: string) => setClientHistory((prev) => prev.map((item) => item.id === id ? { ...item, amount, paymentStatus: 'recebido', paymentMethod } : item));
+  const updateTransactionPayment = (id: number, paymentStatus: PaymentStatus, paymentMethod?: string) => {
+    setTransactions((prev) => prev.map((tx) => tx.id === id ? { ...tx, status: paymentStatus, method: paymentMethod || tx.method } : tx));
   };
+  const completeAppointmentCheckout = (..._args: Parameters<DataContextType['completeAppointmentCheckout']>) => { void _args; unsupported(); };
 
-  const updateTransactionPayment = (
-    id: number,
-    paymentStatus: PaymentStatus,
-    paymentMethod?: string
-  ) => {
-    setTransactions((prev) =>
-      prev.map((tx) =>
-        tx.id === id
-          ? {
-              ...tx,
-              status: paymentStatus,
-              method: paymentMethod || tx.method
-            }
-          : tx
-      )
-    );
-
-    // Também atualiza no histórico do cliente correspondente se houver
-    setClientHistory((prev) =>
-      prev.map((item, idx) =>
-        idx === 1 && paymentStatus === 'recebido'
-          ? { ...item, paymentStatus: 'recebido', paymentMethod: paymentMethod || 'Pix' }
-          : item
-      )
-    );
-  };
-
-  const completeAppointmentCheckout = (
-    appointment: Appointment,
-    amount: string,
-    paymentStatus: PaymentStatus,
-    paymentMethod?: string
-  ) => {
-    // 1. Atualiza o agendamento para concluído
-    updateAppointmentStatus(appointment.id, 'concluido', {
-      amount,
-      paymentStatus,
-      paymentMethod
-    });
-
-    // 2. Extrai valor numérico aproximado
-    const numericStr = amount.replace(/[^\d,]/g, '').replace(',', '.');
-    const numericAmount = parseFloat(numericStr) || 0;
-
-    // 3. Adiciona na lista de transações
-    const newTx: Transaction = {
-      id: Date.now(),
-      appointmentId: appointment.id,
-      client: appointment.client,
-      service: appointment.service,
-      amount,
-      numericAmount,
-      method: paymentMethod || 'A Definir',
-      status: paymentStatus,
-      date: 'Hoje, ' + (appointment.time || '12:00')
-    };
-    setTransactions((prev) => [newTx, ...prev]);
-
-    // 4. Adiciona no histórico do cliente
-    const newHistoryItem: ClientHistoryItem = {
-      id: Date.now(),
-      date: 'Hoje',
-      service: appointment.service,
-      status: 'concluido',
-      amount,
-      paymentStatus,
-      paymentMethod
-    };
-    setClientHistory((prev) => [newHistoryItem, ...prev]);
-  };
-
-  return (
-    <DataContext.Provider
-      value={{
-        appointments,
-        transactions,
-        clients,
-        services,
-        clientTags,
-        pendingApprovals,
-        clientHistory,
-        agendaBlocks,
-        updateAppointmentStatus,
-        addAppointment,
-        rescheduleAppointment,
-        cancelAppointment,
-        approvePending,
-        rejectPending,
-        reschedulePending,
-        denyPending,
-        addAgendaBlock,
-        updateAgendaBlock,
-        deleteAgendaBlock,
-        addService,
-        updateService,
-        updateClient,
-        addClientTag,
-        removeClientTag,
-        updateClientHistoryPayment,
-        updateTransactionPayment,
-        completeAppointmentCheckout
-      }}
-    >
-      {children}
-    </DataContext.Provider>
-  );
+  return <DataContext.Provider value={{
+    appointments, transactions, clients, bookingClients: clientRecords, services, clientTags, pendingApprovals, clientHistory, agendaBlocks,
+    operationsError, setAgendaRange,
+    updateAppointmentStatus, addAppointment, rescheduleAppointment, cancelAppointment,
+    approvePending, rejectPending, reschedulePending, denyPending,
+    addAgendaBlock, updateAgendaBlock, deleteAgendaBlock, addService, updateService,
+    updateClient, addClientTag, removeClientTag, updateClientHistoryPayment, updateTransactionPayment, completeAppointmentCheckout,
+  }}>{children}</DataContext.Provider>;
 };
 
 export const useData = (): DataContextType => {
   const context = useContext(DataContext);
-  if (!context) {
-    throw new Error('useData deve ser utilizado dentro de um DataProvider');
-  }
+  if (!context) throw new Error('useData deve ser utilizado dentro de um DataProvider');
   return context;
 };
