@@ -79,7 +79,7 @@ function AppContent() {
               />
             ) : (
               <>
-                <AppHeader />
+                <AppHeader onOpenNotifications={() => openScreen('pending_approvals')} />
                 <main className="p-4 pb-28 overflow-y-auto h-full no-scrollbar scroll-smooth flex-1">
                   {activeTab === 'dashboard' && <DashboardTab onOpenScreen={openScreen} />}
                   {activeTab === 'agenda' && <AgendaTab onOpenScreen={openScreen} />}
