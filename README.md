@@ -17,7 +17,7 @@ O código segue estrita separação entre regras de negócio e camada visual:
   - **`http`**: `HttpClient` centralizado com `credentials: 'include'` e `X-Correlation-Id`.
   - **`auth`**: `HttpAuthRepository` para setup inicial, login, sessão e logout pela API.
   - **`clients`**: `HttpClientRepository` para sincronização em tempo real de clientes com a API.
-  - **`operations`**: acesso a serviços, expediente, disponibilidade, bloqueios e agendamentos da API.
+  - **`operations`**: acesso a serviços, expediente, disponibilidade, bloqueios, agendamentos, financeiro, histórico e tags de clientes pela API.
 - **`src/presentation`**: Adaptadores primários de interface.
   - **`context` & `hooks`**: `useAuth()` e `useClients()` com cache reativo via **TanStack Query**.
   - **`screens` & `components`**: Componentes e telas com visual preservado em Tailwind CSS.
@@ -64,7 +64,9 @@ O `.env.example` já aponta `VITE_API_BASE_URL` para `http://localhost:3000`. Se
 
 ### Escopo da integração atual
 
-Serviços, horários comerciais, bloqueios de agenda e agendamentos usam a API. A tela de agendamento consulta clientes existentes no backend. Dados financeiros e algumas telas de clientes ainda usam dados locais e não são sincronizados entre usuários.
+Serviços, clientes, horários comerciais, bloqueios, agendamentos, histórico de atendimentos, tags e financeiro usam a API. O financeiro registra pagamentos no encerramento de um atendimento, permite registrar recebimentos pendentes e filtra lançamentos por período. Agendamentos confirmados podem ser reagendados ou cancelados pela interface.
+
+Para essas funções, aplique todas as migrações do backend antes de iniciar a aplicação (`npm run prisma:migrate:deploy`). O frontend não mantém dados locais de contingência para operações: erros da API são apresentados para evitar alterações que não seriam persistidas no servidor.
 
 ### Executar com Docker (opcional)
 

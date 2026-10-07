@@ -1,9 +1,10 @@
-import React from 'react';
-import { MessageCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { MessageCircle, CalendarClock, XCircle, CircleDollarSign } from 'lucide-react';
 import { ScreenHeader } from '../../components/common/ScreenHeader';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { useToast } from '../../context/ToastContext';
 import type { ScreenOpenHandler, Appointment } from '../../types';
+import { useData } from '../../context/DataContext';
 
 interface AppointmentDetailsScreenProps {
   appointment?: Appointment;
@@ -14,8 +15,11 @@ interface AppointmentDetailsScreenProps {
 export const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> = ({
   appointment,
   onClose,
+  onOpenScreen,
 }) => {
   const { showToast } = useToast();
+  const { cancelAppointment } = useData();
+  const [saving, setSaving] = useState(false);
 
   const apt: Appointment = appointment || {
     client: 'Cliente',
@@ -35,6 +39,22 @@ export const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> =
       '_blank'
     );
     showToast('💬 WhatsApp aberto para contato!', 'info');
+  };
+
+  const handleCancel = async () => {
+    if (!apt.id) return;
+    const reason = window.prompt('Informe o motivo do cancelamento:')?.trim();
+    if (!reason) return;
+    setSaving(true);
+    try {
+      await cancelAppointment(apt.id, reason);
+      showToast('Agendamento cancelado.', 'success');
+      onClose();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Falha ao cancelar agendamento.', 'warning');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -84,7 +104,17 @@ export const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> =
           >
             <MessageCircle size={18} /> Enviar Mensagem
           </button>
-
+          {apt.status === 'confirmado' && <>
+            <button type="button" disabled={saving} onClick={() => onOpenScreen('add_appointment', { mode: 'reschedule', id: apt.id, clientId: apt.clientId, serviceId: apt.serviceId, date: apt.date, time: apt.time })} className="w-full py-4 rounded-2xl bg-amber-50 text-amber-800 font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+              <CalendarClock size={18} /> Reagendar
+            </button>
+            <button type="button" disabled={saving} onClick={handleCancel} className="w-full py-4 rounded-2xl bg-red-50 text-red-700 font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+              <XCircle size={18} /> {saving ? 'Cancelando...' : 'Cancelar agendamento'}
+            </button>
+            <button type="button" onClick={() => onOpenScreen('checkout', apt)} className="w-full py-4 rounded-2xl bg-[#FF85C2] text-white font-bold text-sm flex items-center justify-center gap-2">
+              <CircleDollarSign size={18} /> Concluir e lançar pagamento
+            </button>
+          </>}
         </div>
       </main>
     </>

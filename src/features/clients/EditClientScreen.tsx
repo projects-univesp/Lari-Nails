@@ -4,6 +4,7 @@ import { ScreenHeader } from '../../components/common/ScreenHeader';
 import { useClients } from '../../presentation/hooks/useClients';
 import { useToast } from '../../context/ToastContext';
 import type { ClientEntity } from '../../core/clients/domain/client.entity';
+import { useData } from '../../context/DataContext';
 
 interface ClientLikeData {
   id?: string;
@@ -22,8 +23,6 @@ interface EditClientScreenProps {
   onSave?: (updatedClient: ClientLikeData | ClientEntity) => void;
 }
 
-const DEFAULT_TAGS = ['VIP', 'Frequente', 'Nova', 'Devedora', 'Problemática'];
-
 export const EditClientScreen: React.FC<EditClientScreenProps> = ({
   client,
   onClose,
@@ -31,6 +30,7 @@ export const EditClientScreen: React.FC<EditClientScreenProps> = ({
 }) => {
   const { updateClient, deleteClient, isUpdating } = useClients();
   const { showToast } = useToast();
+  const { clientTags } = useData();
 
   const c = client as (ClientEntity & ClientLikeData) | undefined;
   const id = c?.id;
@@ -148,7 +148,7 @@ export const EditClientScreen: React.FC<EditClientScreenProps> = ({
               </label>
             </div>
             <div className="flex flex-wrap gap-2">
-              {DEFAULT_TAGS.map((tag) => {
+              {clientTags.map((tag) => {
                 const isSelected = selectedTags.includes(tag);
                 const isWarning = tag === 'Devedora' || tag === 'Problemática';
                 return (

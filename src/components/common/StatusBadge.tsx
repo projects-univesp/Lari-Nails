@@ -11,6 +11,7 @@ const BADGE_CONFIG: Record<AppointmentStatus, { bg: string; text: string; label:
   pendente: { bg: 'bg-[#fffbeb]', text: 'text-[#b45309]', label: 'Aguardando' },
   concluido: { bg: 'bg-gray-100', text: 'text-gray-600', label: 'Concluído' },
   bloqueado: { bg: 'bg-[#fef2f2]', text: 'text-[#be123c]', label: 'Bloqueado' },
+  cancelado: { bg: 'bg-[#fef2f2]', text: 'text-[#be123c]', label: 'Cancelado' },
 };
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
@@ -22,4 +23,3 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
     </span>
   );
 };
-

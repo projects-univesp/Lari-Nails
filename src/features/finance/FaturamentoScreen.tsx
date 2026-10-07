@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   TrendingUp,
   CreditCard,
@@ -22,12 +22,23 @@ interface FaturamentoScreenProps {
 }
 
 export const FaturamentoScreen: React.FC<FaturamentoScreenProps> = ({ onClose }) => {
-  const { transactions, updateTransactionPayment } = useData();
+  const { transactions, updateTransactionPayment, setFinanceRange, operationsError } = useData();
   const { showToast } = useToast();
 
   const [periodFilter, setPeriodFilter] = useState<'mes' | 'semana' | 'hoje'>('mes');
   const [selectedPendingTx, setSelectedPendingTx] = useState<Transaction | null>(null);
   const [modalMethod, setModalMethod] = useState<PaymentMethod>('Pix');
+  const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+  useEffect(() => {
+    const today = new Date();
+    const from = periodFilter === 'hoje' ? today : periodFilter === 'semana'
+      ? new Date(today.getFullYear(), today.getMonth(), today.getDate() - today.getDay())
+      : new Date(today.getFullYear(), today.getMonth(), 1);
+    const to = periodFilter === 'semana' ? new Date(from.getFullYear(), from.getMonth(), from.getDate() + 6)
+      : periodFilter === 'hoje' ? today : new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    setFinanceRange(dateKey(from), dateKey(to));
+  }, [periodFilter, setFinanceRange]);
 
   // Cálculos dinâmicos a partir das transações reais
   const receivedTransactions = transactions.filter((t) => t.status === 'recebido');
@@ -52,18 +63,19 @@ export const FaturamentoScreen: React.FC<FaturamentoScreenProps> = ({ onClose })
   const totalCount = transactions.length;
   const ticketMedio = totalCount > 0 ? (totalReceived / (receivedTransactions.length || 1)) : 0;
 
-  const pixPercent = totalReceived > 0 ? Math.round((pixTotal / totalReceived) * 100) : 60;
-  const cardPercent = totalReceived > 0 ? Math.round((cardTotal / totalReceived) * 100) : 30;
-  const cashPercent = totalReceived > 0 ? Math.max(0, 100 - pixPercent - cardPercent) : 10;
+  const pixPercent = totalReceived > 0 ? Math.round((pixTotal / totalReceived) * 100) : 0;
+  const cardPercent = totalReceived > 0 ? Math.round((cardTotal / totalReceived) * 100) : 0;
+  const cashPercent = totalReceived > 0 ? Math.round((cashTotal / totalReceived) * 100) : 0;
 
-  const handleConfirmPaymentUpdate = () => {
+  const handleConfirmPaymentUpdate = async () => {
     if (selectedPendingTx) {
-      updateTransactionPayment(selectedPendingTx.id, 'recebido', modalMethod);
-      showToast(
-        `✅ Pagamento de ${selectedPendingTx.client} (${selectedPendingTx.amount}) recebido via ${modalMethod}!`,
-        'success'
-      );
-      setSelectedPendingTx(null);
+      try {
+        await updateTransactionPayment(String(selectedPendingTx.id), modalMethod);
+        showToast(`Pagamento de ${selectedPendingTx.client} recebido via ${modalMethod}.`, 'success');
+        setSelectedPendingTx(null);
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Falha ao registrar recebimento.', 'warning');
+      }
     }
   };
 
@@ -75,7 +87,7 @@ export const FaturamentoScreen: React.FC<FaturamentoScreenProps> = ({ onClose })
         rightAction={
           <button
             type="button"
-            onClick={() => showToast('📊 Relatório financeiro exportado com sucesso!')}
+            onClick={() => showToast('A exportação de relatórios ainda não está disponível.', 'info')}
             aria-label="Exportar relatório"
             className="p-2 rounded-full hover:bg-[var(--brand-pink-bg)] text-gray-500 hover:text-[#FF85C2] transition-colors cursor-pointer"
           >
@@ -85,6 +97,7 @@ export const FaturamentoScreen: React.FC<FaturamentoScreenProps> = ({ onClose })
       />
 
       <main className="flex-1 overflow-y-auto p-5 pb-28 space-y-6">
+        {operationsError && <p role="alert" className="rounded-2xl bg-red-50 p-3 text-sm text-red-700">{operationsError}</p>}
         {/* Seletor de Período */}
         <div className="flex bg-white p-1 rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.02)] mx-0.5">
           <button
@@ -118,7 +131,7 @@ export const FaturamentoScreen: React.FC<FaturamentoScreenProps> = ({ onClose })
                 : 'text-gray-400 hover:bg-gray-50'
             }`}
           >
-            Setembro
+            {new Date().toLocaleDateString('pt-BR', { month: 'long' })}
           </button>
         </div>
 
@@ -142,7 +155,7 @@ export const FaturamentoScreen: React.FC<FaturamentoScreenProps> = ({ onClose })
                   : 'Faturamento do Mês'}
               </span>
               <span className="text-[11px] font-semibold bg-white/20 px-2.5 py-1 rounded-full backdrop-blur-sm">
-                Setembro 2026
+                {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
               </span>
             </div>
 
@@ -155,7 +168,7 @@ export const FaturamentoScreen: React.FC<FaturamentoScreenProps> = ({ onClose })
             <div className="mt-4 pt-4 border-t border-white/20 flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-100 bg-white/15 px-3 py-1 rounded-xl">
                 <TrendingUp size={15} />
-                <span>+12% vs. mês passado</span>
+                <span>Dados registrados</span>
               </div>
               <span className="text-[11px] text-white/80 font-medium">
                 {receivedTransactions.length} recebidos
@@ -209,7 +222,7 @@ export const FaturamentoScreen: React.FC<FaturamentoScreenProps> = ({ onClose })
         <div className="bg-white p-5 rounded-3xl shadow-[0_2px_15px_rgba(0,0,0,0.02)] border border-gray-50 space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="font-bold text-gray-800 text-sm">Distribuição por Pagamento</h4>
-            <span className="text-xs text-gray-400 font-medium">Pix lidera</span>
+            <span className="text-xs text-gray-400 font-medium">Por forma de pagamento</span>
           </div>
 
           <div className="space-y-2 pt-1">
@@ -407,4 +420,3 @@ export const FaturamentoScreen: React.FC<FaturamentoScreenProps> = ({ onClose })
     </>
   );
 };
-

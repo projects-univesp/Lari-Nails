@@ -1,4 +1,4 @@
-export type AppointmentStatus = 'aguardando' | 'confirmado' | 'pendente' | 'concluido' | 'bloqueado';
+export type AppointmentStatus = 'aguardando' | 'confirmado' | 'pendente' | 'concluido' | 'bloqueado' | 'cancelado';
 
 export type PaymentStatus = 'recebido' | 'pendente';
 
@@ -7,6 +7,8 @@ export type AppointmentSource = 'MANUAL' | 'WHATSAPP_BOT';
 
 export interface Appointment {
   id?: string | number;
+  clientId?: string;
+  serviceId?: string;
   time: string;
   client: string;
   service: string;
@@ -16,6 +18,7 @@ export interface Appointment {
   paymentStatus?: PaymentStatus;
   paymentMethod?: PaymentMethod | string;
   externalId?: string;
+  paymentId?: string;
   source?: AppointmentSource;
   createdAt?: string;
   updatedAt?: string;
@@ -75,8 +78,8 @@ export interface ClientHistoryItem {
 }
 
 export interface Transaction {
-  id: number;
-  appointmentId?: number;
+  id: string | number;
+  appointmentId?: string;
   service: string;
   client: string;
   amount: string;

@@ -7,35 +7,41 @@ import { operationsApi } from '../../infra/operations/operations-api';
 import type { Appointment } from '../../types';
 
 interface AddAppointmentScreenProps {
-  data?: { mode?: string; client?: string; service?: string; date?: string; time?: string; id?: string | number };
+  data?: { mode?: string; client?: string; clientId?: string; service?: string; serviceId?: string; date?: string; time?: string; id?: string | number };
   onClose: () => void;
   onSave?: (appointment: Appointment) => void;
 }
 
 export const AddAppointmentScreen: React.FC<AddAppointmentScreenProps> = ({ data, onClose, onSave }) => {
-  const { addAppointment, bookingClients, services } = useData();
+  const { addAppointment, rescheduleAppointment, bookingClients, services } = useData();
   const { showToast } = useToast();
-  const [clientId, setClientId] = useState('');
-  const [serviceId, setServiceId] = useState('');
+  const isReschedule = data?.mode === 'reschedule';
+  const [clientId, setClientId] = useState(data?.clientId ?? '');
+  const [serviceId, setServiceId] = useState(data?.serviceId ?? '');
   const [date, setDate] = useState(data?.date && data.date !== 'Hoje' ? data.date : '');
-  const [time, setTime] = useState('');
+  const [time, setTime] = useState(data?.time ?? '');
   const [saving, setSaving] = useState(false);
-  const activeServices = services.filter((service) => service.active);
+  const activeServices = services.filter((service) => service.active || service.id === serviceId);
   const selectedService = activeServices.find((service) => service.id === serviceId);
   const slotsQuery = useQuery({
-    queryKey: ['operations', 'availability', serviceId, date],
-    queryFn: () => operationsApi.availability(serviceId, date, date),
+    queryKey: ['operations', 'availability', serviceId, date, isReschedule ? data?.id : undefined],
+    queryFn: () => operationsApi.availability(serviceId, date, date, isReschedule ? String(data?.id) : undefined),
     enabled: Boolean(serviceId && date),
   });
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!clientId || !serviceId || !date || !time) return;
+    if ((!isReschedule && !clientId) || !serviceId || !date || !time || (isReschedule && !data?.id)) return;
     setSaving(true);
     try {
-      const result = await addAppointment({ clientId, serviceId, requestedDate: date, requestedTime: time });
-      onSave?.({ id: result.id, client: bookingClients.find((client) => client.id === clientId)?.nome ?? 'Cliente', service: selectedService?.name ?? 'Serviço', date, time, status: 'aguardando' });
-      showToast('Pedido de agendamento enviado para aprovação.', 'success');
+      if (isReschedule) {
+        await rescheduleAppointment(String(data.id), date, time);
+        showToast('Agendamento atualizado com sucesso.', 'success');
+      } else {
+        const result = await addAppointment({ clientId, serviceId, requestedDate: date, requestedTime: time });
+        onSave?.({ id: result.id, client: bookingClients.find((client) => client.id === clientId)?.nome ?? 'Cliente', service: selectedService?.name ?? 'Serviço', date, time, status: 'aguardando' });
+        showToast('Pedido de agendamento enviado para aprovação.', 'success');
+      }
       onClose();
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Falha ao criar agendamento.', 'warning');
@@ -46,20 +52,19 @@ export const AddAppointmentScreen: React.FC<AddAppointmentScreenProps> = ({ data
   };
 
   return <>
-    <ScreenHeader title="Novo Agendamento" onClose={onClose} />
+    <ScreenHeader title={isReschedule ? 'Reagendar Atendimento' : 'Novo Agendamento'} onClose={onClose} />
     <main className="flex-1 overflow-y-auto p-5 pb-24">
-      {data?.mode === 'reschedule' ? (
-        <p className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">Reagendamento de pedidos confirmados ainda não está disponível.</p>
-      ) : (
         <form className="space-y-6" onSubmit={handleSubmit}>
+          {!isReschedule && <>
           <label className="block text-xs font-bold uppercase tracking-widest text-gray-500">Cliente
             <select value={clientId} onChange={(event) => setClientId(event.target.value)} required className="mt-2 w-full px-4 py-4 rounded-2xl bg-white text-gray-700">
               <option value="">Selecione um cliente...</option>
               {bookingClients.map((client) => <option key={client.id} value={client.id}>{client.nome} · {client.telefone}</option>)}
             </select>
           </label>
+          </>}
           <label className="block text-xs font-bold uppercase tracking-widest text-gray-500">Serviço
-            <select value={serviceId} onChange={(event) => { setServiceId(event.target.value); setTime(''); }} required className="mt-2 w-full px-4 py-4 rounded-2xl bg-white text-gray-700">
+            <select value={serviceId} disabled={isReschedule} onChange={(event) => { setServiceId(event.target.value); setTime(''); }} required className="mt-2 w-full px-4 py-4 rounded-2xl bg-white text-gray-700 disabled:opacity-70">
               <option value="">Selecione um serviço...</option>
               {activeServices.map((service) => <option key={service.id} value={service.id}>{service.name} · {service.duration} · {service.price}</option>)}
             </select>
@@ -75,9 +80,8 @@ export const AddAppointmentScreen: React.FC<AddAppointmentScreenProps> = ({ data
           </label>
           {slotsQuery.error && <p role="alert" className="text-sm text-red-600">{slotsQuery.error.message}</p>}
           {serviceId && date && !slotsQuery.isLoading && !slotsQuery.error && slotsQuery.data?.length === 0 && <p className="text-sm text-amber-700">Nenhum horário disponível para esta data.</p>}
-          <button type="submit" disabled={saving || !time} className="w-full py-4 rounded-2xl bg-[#FF85C2] text-white font-bold uppercase tracking-widest disabled:opacity-50">{saving ? 'Enviando...' : 'Solicitar Agendamento'}</button>
+          <button type="submit" disabled={saving || !time} className="w-full py-4 rounded-2xl bg-[#FF85C2] text-white font-bold uppercase tracking-widest disabled:opacity-50">{saving ? 'Salvando...' : isReschedule ? 'Confirmar novo horário' : 'Solicitar Agendamento'}</button>
         </form>
-      )}
     </main>
   </>;
 };

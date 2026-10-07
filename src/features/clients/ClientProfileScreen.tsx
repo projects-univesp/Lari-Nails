@@ -1,9 +1,10 @@
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Edit3, MessageCircle, CalendarDays as CalendarDaysIcon, CheckCircle2, Clock, Trash2 } from 'lucide-react';
 import { ScreenHeader } from '../../components/common/ScreenHeader';
-import { useData } from '../../context/DataContext';
 import { useToast } from '../../context/ToastContext';
 import { useClients } from '../../presentation/hooks/useClients';
+import { operationsApi } from '../../infra/operations/operations-api';
 import type { ClientEntity } from '../../core/clients/domain/client.entity';
 import type { ScreenOpenHandler } from '../../types';
 
@@ -30,7 +31,6 @@ export const ClientProfileScreen: React.FC<ClientProfileScreenProps> = ({
   onClose,
   onOpenScreen,
 }) => {
-  const { clientHistory } = useData();
   const { showToast } = useToast();
   const { deleteClient } = useClients();
 
@@ -40,6 +40,8 @@ export const ClientProfileScreen: React.FC<ClientProfileScreenProps> = ({
   const phone = c?.telefone || c?.phone || '(11) 99999-9999';
   const tags: string[] = c?.tags || ['VIP'];
   const totalFaltas: number = c?.totalFaltas || 0;
+  const historyQuery = useQuery({ queryKey: ['clients', id, 'history'], queryFn: () => operationsApi.clientHistory(id!), enabled: Boolean(id) });
+  const clientHistory = historyQuery.data ?? [];
 
   const handleWhatsApp = () => {
     const cleanPhone = phone.replace(/\D/g, '');
@@ -131,7 +133,7 @@ export const ClientProfileScreen: React.FC<ClientProfileScreenProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => onOpenScreen('add_appointment', { client: name })}
+              onClick={() => onOpenScreen('add_appointment', { client: name, clientId: id })}
               className="flex-1 bg-[#FAFAFA] border border-gray-100 text-gray-700 py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform hover:bg-gray-100 uppercase tracking-wider shadow-sm cursor-pointer"
             >
               <CalendarDaysIcon size={18} /> Agendar
@@ -149,23 +151,28 @@ export const ClientProfileScreen: React.FC<ClientProfileScreenProps> = ({
           </div>
 
           <div className="space-y-3">
-            {clientHistory.map((item, idx) => {
-              const isReceived = item.paymentStatus === 'recebido';
+            {historyQuery.isLoading && <p className="text-sm text-gray-500">Carregando histórico...</p>}
+            {historyQuery.error && <p role="alert" className="text-sm text-red-600">Falha ao carregar histórico de atendimentos.</p>}
+            {!historyQuery.isLoading && !historyQuery.error && clientHistory.length === 0 && <p className="text-sm text-gray-500">Nenhum atendimento concluído.</p>}
+            {clientHistory.map((item) => {
+              const isReceived = item.paymentStatus === 'RECEBIDO';
+              const amount = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.amountCents / 100);
 
               return (
                 <button
-                  key={item.id || idx}
+                  key={item.id}
                   type="button"
                   onClick={() =>
-                    item.paymentStatus === 'pendente' &&
+                    item.paymentStatus === 'PENDENTE' &&
                     onOpenScreen('checkout', {
                       client: name,
                       service: item.service,
+                      id: item.id,
                       date: item.date,
-                      time: '12:00',
+                      time: item.time,
                       status: 'concluido',
-                      price: item.amount,
-                      historyId: item.id,
+                      price: amount,
+                      paymentId: item.paymentId,
                     })
                   }
                   className="bg-white p-4 rounded-3xl flex justify-between items-center shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-transparent hover:border-gray-50 w-full text-left"
@@ -184,13 +191,13 @@ export const ClientProfileScreen: React.FC<ClientProfileScreenProps> = ({
                       <p className="font-bold text-gray-800 text-sm">{item.service}</p>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-[11px] text-gray-400 uppercase tracking-wider">
-                          {item.date}
+                          {new Date(`${item.date}T00:00:00`).toLocaleDateString('pt-BR')}
                         </span>
                         {item.paymentMethod && (
                           <>
                             <span className="text-[10px] text-gray-300">•</span>
                             <span className="text-[10px] text-gray-500 font-medium">
-                              {item.paymentMethod}
+                              {item.paymentMethod === 'CARTAO' ? 'Cartão' : item.paymentMethod === 'PIX' ? 'Pix' : 'Dinheiro'}
                             </span>
                           </>
                         )}
@@ -200,13 +207,13 @@ export const ClientProfileScreen: React.FC<ClientProfileScreenProps> = ({
 
                   <div className="flex flex-col items-end gap-1">
                     <span className="text-xs font-extrabold text-gray-700">
-                      {item.amount || 'R$ 120,00'}
+                      {amount}
                     </span>
                     <span
                       className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
                         isReceived
                           ? 'bg-[#e6f7ec] text-[#047857]'
-                          : 'bg-[#fffbeb] text-[#b45309] border border-amber-200'
+                        : 'bg-[#fffbeb] text-[#b45309] border border-amber-200'
                       }`}
                     >
                       {isReceived ? 'Recebido' : 'Pendente'}

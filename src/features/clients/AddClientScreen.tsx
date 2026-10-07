@@ -3,16 +3,16 @@ import { Tag } from 'lucide-react';
 import { ScreenHeader } from '../../components/common/ScreenHeader';
 import { useClients } from '../../presentation/hooks/useClients';
 import { useToast } from '../../context/ToastContext';
+import { useData } from '../../context/DataContext';
 
 interface AddClientScreenProps {
   onClose: () => void;
 }
 
-const DEFAULT_TAGS = ['VIP', 'Frequente', 'Nova', 'Devedora', 'Problemática'];
-
 export const AddClientScreen: React.FC<AddClientScreenProps> = ({ onClose }) => {
   const { createClient, isCreating } = useClients();
   const { showToast } = useToast();
+  const { clientTags } = useData();
 
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
@@ -102,7 +102,7 @@ export const AddClientScreen: React.FC<AddClientScreenProps> = ({ onClose }) => 
               </label>
             </div>
             <div className="flex flex-wrap gap-2">
-              {DEFAULT_TAGS.map((tag) => {
+              {clientTags.map((tag) => {
                 const isSelected = selectedTags.includes(tag);
                 const isWarning = tag === 'Devedora' || tag === 'Problemática';
                 return (

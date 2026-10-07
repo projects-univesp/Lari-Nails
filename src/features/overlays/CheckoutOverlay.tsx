@@ -11,7 +11,7 @@ interface CheckoutOverlayProps {
 }
 
 export const CheckoutOverlay: React.FC<CheckoutOverlayProps> = ({ appointment, onClose }) => {
-  const { completeAppointmentCheckout, updateClientHistoryPayment } = useData();
+  const { completeAppointmentCheckout, updateTransactionPayment } = useData();
   const { showToast } = useToast();
 
   const currentApt: Appointment = appointment || {
@@ -31,25 +31,41 @@ export const CheckoutOverlay: React.FC<CheckoutOverlayProps> = ({ appointment, o
   const [priceInput, setPriceInput] = useState(defaultRawPrice);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('recebido');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Pix');
+  const [saving, setSaving] = useState(false);
+  const existingPaymentId = appointment?.paymentId;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const formattedAmount = `R$ ${priceInput.trim()}`;
-    const selectedMethod = paymentStatus === 'recebido' ? paymentMethod : 'A Receber';
-
-    const historyId = (currentApt as Appointment & { historyId?: number }).historyId;
-    if (historyId && paymentStatus === 'recebido') updateClientHistoryPayment(historyId, formattedAmount, selectedMethod);
-    else completeAppointmentCheckout(currentApt, formattedAmount, paymentStatus, selectedMethod);
-
-    showToast(
-      paymentStatus === 'recebido'
-        ? `✅ Atendimento concluído! ${formattedAmount} recebido via ${selectedMethod}.`
-        : `✅ Atendimento concluído! Lançado como pendente (${formattedAmount}).`,
-      'success'
-    );
-
-    onClose();
+    if (!existingPaymentId && !currentApt.id) return;
+    if (existingPaymentId) {
+      setSaving(true);
+      try {
+        await updateTransactionPayment(existingPaymentId, paymentMethod);
+        showToast(`Pagamento recebido via ${paymentMethod}.`, 'success');
+        onClose();
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Falha ao registrar recebimento.', 'warning');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+    const amountCents = Math.round(Number(priceInput.replace(',', '.')) * 100);
+    if (!Number.isInteger(amountCents) || amountCents < 0) {
+      showToast('Informe um valor válido.', 'warning');
+      return;
+    }
+    setSaving(true);
+    try {
+      await completeAppointmentCheckout(String(currentApt.id), { amountCents, paymentStatus, paymentMethod: paymentStatus === 'recebido' ? paymentMethod : undefined });
+      const formattedAmount = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(amountCents / 100);
+      showToast(paymentStatus === 'recebido' ? `Atendimento concluído: ${formattedAmount} recebido via ${paymentMethod}.` : `Atendimento concluído: ${formattedAmount} pendente.`, 'success');
+      onClose();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Falha ao concluir atendimento.', 'warning');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -73,10 +89,10 @@ export const CheckoutOverlay: React.FC<CheckoutOverlayProps> = ({ appointment, o
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* 1. Valor do Serviço */}
+          {/* Valor do serviço */}
           <div className="bg-white p-5 rounded-3xl shadow-[0_2px_15px_rgba(0,0,0,0.02)] border border-gray-50 space-y-2">
             <label className="text-xs font-bold uppercase tracking-widest text-gray-500 block px-1">
-              Valor Final Cobrado (R$)
+              {existingPaymentId ? 'Valor pendente (R$)' : 'Valor Final Cobrado (R$)'}
             </label>
             <div className="relative">
               <div className="absolute left-4 top-3.5 text-gray-400 font-bold text-sm">
@@ -86,18 +102,19 @@ export const CheckoutOverlay: React.FC<CheckoutOverlayProps> = ({ appointment, o
                 type="text"
                 value={priceInput}
                 onChange={(e) => setPriceInput(e.target.value)}
+                readOnly={Boolean(existingPaymentId)}
                 placeholder="120,00"
                 className="w-full pl-11 pr-4 py-3.5 rounded-2xl bg-gray-50 border border-gray-100 font-bold text-lg text-gray-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#FF85C2] transition-all"
                 required
               />
             </div>
             <p className="text-[10px] text-gray-400 px-1">
-              Você pode alterar o valor caso tenha aplicado descontos ou adicionais.
+              {!existingPaymentId && 'Você pode alterar o valor caso tenha aplicado descontos ou adicionais.'}
             </p>
           </div>
 
-          {/* 2. Status do Pagamento */}
-          <div className="bg-white p-5 rounded-3xl shadow-[0_2px_15px_rgba(0,0,0,0.02)] border border-gray-50 space-y-3">
+          {/* Status do pagamento */}
+          {!existingPaymentId && <div className="bg-white p-5 rounded-3xl shadow-[0_2px_15px_rgba(0,0,0,0.02)] border border-gray-50 space-y-3">
             <label className="text-xs font-bold uppercase tracking-widest text-gray-500 block px-1">
               Status do Pagamento
             </label>
@@ -126,10 +143,10 @@ export const CheckoutOverlay: React.FC<CheckoutOverlayProps> = ({ appointment, o
                 <Clock size={16} /> Pendente
               </button>
             </div>
-          </div>
+          </div>}
 
           {/* 3. Forma de Pagamento (se 'recebido') */}
-          {paymentStatus === 'recebido' && (
+          {(existingPaymentId || paymentStatus === 'recebido') && (
             <div className="bg-white p-5 rounded-3xl shadow-[0_2px_15px_rgba(0,0,0,0.02)] border border-gray-50 space-y-3 animate-in fade-in duration-200">
               <label className="text-xs font-bold uppercase tracking-widest text-gray-500 block px-1">
                 Forma de Pagamento
@@ -185,9 +202,10 @@ export const CheckoutOverlay: React.FC<CheckoutOverlayProps> = ({ appointment, o
           <div className="pt-2">
             <button
               type="submit"
+              disabled={saving || !currentApt.id}
               className="w-full py-4 rounded-2xl bg-[#FF85C2] text-white font-bold text-sm uppercase tracking-widest shadow-[0_4px_15px_rgba(255,133,194,0.3)] active:scale-[0.98] transition-transform cursor-pointer hover:bg-[#e86ba8] flex items-center justify-center gap-2"
             >
-              <CheckCircle2 size={18} /> Confirmar & Concluir
+              <CheckCircle2 size={18} /> {saving ? 'Salvando...' : existingPaymentId ? 'Registrar Recebimento' : 'Confirmar & Concluir'}
             </button>
           </div>
         </form>
@@ -195,4 +213,3 @@ export const CheckoutOverlay: React.FC<CheckoutOverlayProps> = ({ appointment, o
     </>
   );
 };
-

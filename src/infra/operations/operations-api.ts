@@ -37,7 +37,7 @@ export interface ApiAppointment {
   durationMinutes: number;
   priceCents: number;
   source: 'MANUAL' | 'WHATSAPP_BOT';
-  status: 'AGUARDANDO' | 'CONFIRMADO' | 'REAGENDAMENTO_SUGERIDO' | 'CANCELADO';
+  status: 'AGUARDANDO' | 'CONFIRMADO' | 'REAGENDAMENTO_SUGERIDO' | 'CANCELADO' | 'CONCLUIDO';
   denialReason: string | null;
   proposedDate: string | null;
   proposedTime: string | null;
@@ -49,6 +49,37 @@ export interface ApiClient {
   id: string;
   nome: string;
   telefone: string;
+  tags: string[];
+  bday: string | null;
+  totalFaltas: number;
+  status: 'ativo' | 'inativo';
+}
+
+export interface ApiTransaction {
+  id: string;
+  appointmentId: string;
+  clientId: string;
+  clientName: string;
+  serviceName: string;
+  amountCents: number;
+  status: 'PENDENTE' | 'RECEBIDO';
+  method: 'PIX' | 'CARTAO' | 'DINHEIRO' | null;
+  appointmentDate: string;
+  appointmentTime: string;
+  date: string;
+  paidAt: string | null;
+}
+
+export interface ApiClientHistory {
+  id: string;
+  date: string;
+  time: string;
+  status: 'CONCLUIDO';
+  service: string;
+  amountCents: number;
+  paymentStatus: 'PENDENTE' | 'RECEBIDO';
+  paymentMethod: 'PIX' | 'CARTAO' | 'DINHEIRO' | null;
+  paymentId: string;
 }
 
 export interface ApiSlot {
@@ -74,5 +105,13 @@ export const operationsApi = {
   createAppointment: (input: { clientId: string; serviceId: string; requestedDate: string; requestedTime: string; source: 'MANUAL' }) => httpClient.post<ApiAppointment>('/appointments', input),
   decideAppointment: (id: string, input: { status: 'CONFIRMADO' | 'CANCELADO' | 'REAGENDAMENTO_SUGERIDO'; reason?: string; proposedDate?: string; proposedTime?: string }) => httpClient.post<ApiAppointment>(`/appointments/${id}/status`, input),
   listClients: () => httpClient.get<ApiClient[]>('/clients'),
-  availability: (serviceId: string, from: string, to: string) => httpClient.get<ApiSlot[]>(`/availability?serviceId=${encodeURIComponent(serviceId)}&${rangeQuery(from, to)}`),
+  availability: (serviceId: string, from: string, to: string, excludeAppointmentId?: string) => httpClient.get<ApiSlot[]>(`/availability?serviceId=${encodeURIComponent(serviceId)}&${rangeQuery(from, to)}${excludeAppointmentId ? `&excludeAppointmentId=${encodeURIComponent(excludeAppointmentId)}` : ''}`),
+  rescheduleAppointment: (id: string, requestedDate: string, requestedTime: string) => httpClient.patch<ApiAppointment>(`/appointments/${id}/reschedule`, { requestedDate, requestedTime }),
+  checkout: (appointmentId: string, input: { amountCents: number; status: 'PENDENTE' | 'RECEBIDO'; method?: 'PIX' | 'CARTAO' | 'DINHEIRO' }) => httpClient.post<ApiTransaction>(`/finance/appointments/${appointmentId}/checkout`, input),
+  listTransactions: (from: string, to: string) => httpClient.get<ApiTransaction[]>(`/finance/transactions?${rangeQuery(from, to)}`),
+  receiveTransaction: (id: string, method: 'PIX' | 'CARTAO' | 'DINHEIRO') => httpClient.patch<ApiTransaction>(`/finance/transactions/${id}/receive`, { method }),
+  clientHistory: (id: string) => httpClient.get<ApiClientHistory[]>(`/clients/${id}/history`),
+  listClientTags: () => httpClient.get<string[]>('/client-tags'),
+  createClientTag: (name: string) => httpClient.post<string>('/client-tags', { name }),
+  deleteClientTag: (name: string) => httpClient.delete<void>(`/client-tags/${encodeURIComponent(name)}`),
 };

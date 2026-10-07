@@ -1,9 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useCallback, useContext, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { INITIAL_CLIENTS, INITIAL_TRANSACTIONS, CLIENT_SAMPLE_HISTORY, AVAILABLE_CLIENT_TAGS } from '../data/mockData';
-import type { Appointment, PendingAppointment, Client, Transaction, AppointmentStatus, PaymentStatus, ClientHistoryItem, AgendaBlock, Service } from '../types';
-import { operationsApi, type ApiAppointment, type ApiClient, type ApiService } from '../infra/operations/operations-api';
+import type { Appointment, PendingAppointment, Transaction, PaymentStatus, AgendaBlock, Service } from '../types';
+import { operationsApi, type ApiAppointment, type ApiClient, type ApiService, type ApiTransaction } from '../infra/operations/operations-api';
 import { useAuth } from '../presentation/hooks/useAuth';
 
 export interface ServiceInput {
@@ -25,19 +24,17 @@ export interface ManualBookingInput {
 interface DataContextType {
   appointments: Appointment[];
   transactions: Transaction[];
-  clients: Client[];
   bookingClients: ApiClient[];
   services: Service[];
   clientTags: string[];
   pendingApprovals: PendingAppointment[];
-  clientHistory: ClientHistoryItem[];
   agendaBlocks: AgendaBlock[];
   operationsError: string | null;
   setAgendaRange: (from: string, to: string) => void;
-  updateAppointmentStatus: (id: string | number | undefined, status: AppointmentStatus, paymentInfo?: { amount: string; paymentStatus: PaymentStatus; paymentMethod?: string }) => void;
+  setFinanceRange: (from: string, to: string) => void;
   addAppointment: (input: ManualBookingInput) => Promise<ApiAppointment>;
-  rescheduleAppointment: (id: string | number | undefined, date: string, time: string) => void;
-  cancelAppointment: (id: string | number | undefined) => void;
+  rescheduleAppointment: (id: string | number, date: string, time: string) => Promise<void>;
+  cancelAppointment: (id: string | number, reason: string) => Promise<void>;
   approvePending: (id: string) => Promise<void>;
   rejectPending: (id: string) => Promise<void>;
   reschedulePending: (id: string, date: string, time: string) => Promise<void>;
@@ -47,12 +44,10 @@ interface DataContextType {
   deleteAgendaBlock: (id: string | number) => Promise<void>;
   addService: (service: ServiceInput) => Promise<void>;
   updateService: (id: string, service: ServiceInput) => Promise<void>;
-  updateClient: (client: Client) => void;
-  addClientTag: (tag: string) => void;
-  removeClientTag: (tag: string) => void;
-  updateClientHistoryPayment: (id: number, amount: string, paymentMethod: string) => void;
-  updateTransactionPayment: (id: number, paymentStatus: PaymentStatus, paymentMethod?: string) => void;
-  completeAppointmentCheckout: (appointment: Appointment, amount: string, paymentStatus: PaymentStatus, paymentMethod?: string) => void;
+  addClientTag: (tag: string) => Promise<void>;
+  removeClientTag: (tag: string) => Promise<void>;
+  updateTransactionPayment: (id: string, paymentMethod: string) => Promise<void>;
+  completeAppointmentCheckout: (appointmentId: string, input: { amountCents: number; paymentStatus: PaymentStatus; paymentMethod?: string }) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -63,37 +58,42 @@ const currentMonth = () => {
 };
 const money = (cents: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
 const duration = (minutes: number) => minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)}h${minutes % 60 ? ` ${minutes % 60}min` : ''}`;
-const statusMap: Record<ApiAppointment['status'], AppointmentStatus> = {
-  AGUARDANDO: 'aguardando', CONFIRMADO: 'confirmado', REAGENDAMENTO_SUGERIDO: 'pendente', CANCELADO: 'bloqueado',
+const statusMap: Record<ApiAppointment['status'], Appointment['status']> = {
+  AGUARDANDO: 'aguardando', CONFIRMADO: 'confirmado', REAGENDAMENTO_SUGERIDO: 'pendente', CANCELADO: 'cancelado', CONCLUIDO: 'concluido',
 };
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser } = useAuth();
   const queryClient = useQueryClient();
   const [range, setRange] = useState(currentMonth);
+  const [financeRange, setFinanceRangeState] = useState(currentMonth);
   const setAgendaRange = useCallback((from: string, to: string) => {
     setRange((current) => current.from === from && current.to === to ? current : { from, to });
   }, []);
-  const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
-  const [clients, setClients] = useState<Client[]>(INITIAL_CLIENTS);
-  const [clientTags, setClientTags] = useState<string[]>(AVAILABLE_CLIENT_TAGS);
-  const [clientHistory, setClientHistory] = useState<ClientHistoryItem[]>(CLIENT_SAMPLE_HISTORY);
+  const setFinanceRange = useCallback((from: string, to: string) => {
+    setFinanceRangeState((current) => current.from === from && current.to === to ? current : { from, to });
+  }, []);
   const enabled = Boolean(currentUser);
 
   const servicesQuery = useQuery({ queryKey: ['operations', 'services'], queryFn: operationsApi.listServices, enabled });
   const clientsQuery = useQuery({ queryKey: ['operations', 'clients'], queryFn: operationsApi.listClients, enabled });
+  const clientTagsQuery = useQuery({ queryKey: ['operations', 'client-tags'], queryFn: operationsApi.listClientTags, enabled });
   const appointmentsQuery = useQuery({ queryKey: ['operations', 'appointments', range.from, range.to], queryFn: () => operationsApi.listAppointments(range.from, range.to), enabled });
   const pendingQuery = useQuery({ queryKey: ['operations', 'pending'], queryFn: operationsApi.listPending, enabled });
   const blocksQuery = useQuery({ queryKey: ['operations', 'blocks', range.from, range.to], queryFn: () => operationsApi.listBlocks(range.from, range.to), enabled });
+  const transactionsQuery = useQuery({ queryKey: ['operations', 'transactions', financeRange.from, financeRange.to], queryFn: () => operationsApi.listTransactions(financeRange.from, financeRange.to), enabled });
 
   const serviceRecords = servicesQuery.data ?? [];
   const clientRecords = clientsQuery.data ?? [];
+  const clientTags = clientTagsQuery.data ?? [];
   const services: Service[] = serviceRecords.map((item: ApiService) => ({
     id: item.id, name: item.name, category: item.category, price: money(item.priceCents), duration: duration(item.durationMinutes),
     priceCents: item.priceCents, durationMinutes: item.durationMinutes, active: item.active, description: item.description,
   }));
   const convertAppointment = (item: ApiAppointment): Appointment => ({
     id: item.id,
+    clientId: item.clientId,
+    serviceId: item.serviceId,
     client: clientRecords.find((client) => client.id === item.clientId)?.nome ?? 'Cliente',
     service: serviceRecords.find((service) => service.id === item.serviceId)?.name ?? 'Serviço',
     date: item.requestedDate,
@@ -117,13 +117,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     requestedAt: item.createdAt,
   }));
   const agendaBlocks: AgendaBlock[] = blocksQuery.data ?? [];
-  const firstError = [servicesQuery.error, clientsQuery.error, appointmentsQuery.error, pendingQuery.error, blocksQuery.error].find(Boolean);
+  const transactions: Transaction[] = (transactionsQuery.data ?? []).map((item: ApiTransaction) => ({
+    id: item.id, appointmentId: item.appointmentId, client: item.clientName, service: item.serviceName,
+    amount: money(item.amountCents), numericAmount: item.amountCents / 100,
+    method: item.method === 'PIX' ? 'Pix' : item.method === 'CARTAO' ? 'Cartão' : item.method === 'DINHEIRO' ? 'Dinheiro' : 'A Receber',
+    status: item.status === 'RECEBIDO' ? 'recebido' : 'pendente', date: new Date(item.date).toLocaleString('pt-BR'),
+  }));
+  const firstError = [servicesQuery.error, clientsQuery.error, clientTagsQuery.error, appointmentsQuery.error, pendingQuery.error, blocksQuery.error, transactionsQuery.error].find(Boolean);
   const operationsError = firstError instanceof Error ? firstError.message : null;
 
   const refreshAppointments = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['operations', 'appointments'] }),
       queryClient.invalidateQueries({ queryKey: ['operations', 'pending'] }),
+      queryClient.invalidateQueries({ queryKey: ['operations', 'transactions'] }),
     ]);
   };
 
@@ -162,26 +169,40 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await queryClient.invalidateQueries({ queryKey: ['operations', 'services'] });
   };
 
-  const unsupported = () => { throw new Error('Esta ação ainda não está disponível para agendamentos da API'); };
-  const updateAppointmentStatus = (..._args: Parameters<DataContextType['updateAppointmentStatus']>) => { void _args; unsupported(); };
-  const rescheduleAppointment = (..._args: Parameters<DataContextType['rescheduleAppointment']>) => { void _args; unsupported(); };
-  const cancelAppointment = (..._args: Parameters<DataContextType['cancelAppointment']>) => { void _args; unsupported(); };
-  const updateClient = (client: Client) => setClients((prev) => prev.map((item) => item.phone === client.phone ? client : item));
-  const addClientTag = (tag: string) => setClientTags((prev) => prev.includes(tag) ? prev : [...prev, tag]);
-  const removeClientTag = (tag: string) => setClientTags((prev) => prev.filter((item) => item !== tag));
-  const updateClientHistoryPayment = (id: number, amount: string, paymentMethod: string) => setClientHistory((prev) => prev.map((item) => item.id === id ? { ...item, amount, paymentStatus: 'recebido', paymentMethod } : item));
-  const updateTransactionPayment = (id: number, paymentStatus: PaymentStatus, paymentMethod?: string) => {
-    setTransactions((prev) => prev.map((tx) => tx.id === id ? { ...tx, status: paymentStatus, method: paymentMethod || tx.method } : tx));
+  const rescheduleAppointment = async (id: string | number, date: string, time: string) => {
+    await operationsApi.rescheduleAppointment(String(id), date, time);
+    await refreshAppointments();
   };
-  const completeAppointmentCheckout = (..._args: Parameters<DataContextType['completeAppointmentCheckout']>) => { void _args; unsupported(); };
+  const cancelAppointment = async (id: string | number, reason: string) => {
+    await operationsApi.decideAppointment(String(id), { status: 'CANCELADO', reason });
+    await refreshAppointments();
+  };
+  const addClientTag = async (tag: string) => {
+    await operationsApi.createClientTag(tag);
+    await queryClient.invalidateQueries({ queryKey: ['operations', 'client-tags'] });
+  };
+  const removeClientTag = async (tag: string) => {
+    await operationsApi.deleteClientTag(tag);
+    await queryClient.invalidateQueries({ queryKey: ['operations', 'client-tags'] });
+  };
+  const updateTransactionPayment = async (id: string, paymentMethod: string) => {
+    const method = paymentMethod === 'Cartão' ? 'CARTAO' : paymentMethod === 'Dinheiro' ? 'DINHEIRO' : 'PIX';
+    await operationsApi.receiveTransaction(String(id), method);
+    await queryClient.invalidateQueries({ queryKey: ['operations', 'transactions'] });
+  };
+  const completeAppointmentCheckout = async (appointmentId: string, input: { amountCents: number; paymentStatus: PaymentStatus; paymentMethod?: string }) => {
+    const method = input.paymentMethod === 'Cartão' ? 'CARTAO' : input.paymentMethod === 'Dinheiro' ? 'DINHEIRO' : input.paymentMethod === 'Pix' ? 'PIX' : undefined;
+    await operationsApi.checkout(appointmentId, { amountCents: input.amountCents, status: input.paymentStatus === 'recebido' ? 'RECEBIDO' : 'PENDENTE', ...(method ? { method } : {}) });
+    await refreshAppointments();
+  };
 
   return <DataContext.Provider value={{
-    appointments, transactions, clients, bookingClients: clientRecords, services, clientTags, pendingApprovals, clientHistory, agendaBlocks,
-    operationsError, setAgendaRange,
-    updateAppointmentStatus, addAppointment, rescheduleAppointment, cancelAppointment,
+    appointments, transactions, bookingClients: clientRecords, services, clientTags, pendingApprovals, agendaBlocks,
+    operationsError, setAgendaRange, setFinanceRange,
+    addAppointment, rescheduleAppointment, cancelAppointment,
     approvePending, rejectPending, reschedulePending, denyPending,
     addAgendaBlock, updateAgendaBlock, deleteAgendaBlock, addService, updateService,
-    updateClient, addClientTag, removeClientTag, updateClientHistoryPayment, updateTransactionPayment, completeAppointmentCheckout,
+    addClientTag, removeClientTag, updateTransactionPayment, completeAppointmentCheckout,
   }}>{children}</DataContext.Provider>;
 };
 
