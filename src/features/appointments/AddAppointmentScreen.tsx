@@ -13,6 +13,8 @@ interface AddAppointmentScreenProps {
     date?: string;
     time?: string;
     id?: number;
+    proposedDate?: string;
+    proposedTime?: string;
   };
   onClose: () => void;
   onSave?: (appointment: Appointment) => void;
@@ -23,17 +25,18 @@ export const AddAppointmentScreen: React.FC<AddAppointmentScreenProps> = ({
   onClose,
   onSave,
 }) => {
-  const { addAppointment, rescheduleAppointment } = useData();
+  const { addAppointment, rescheduleAppointment, recordClientRescheduleResponse } = useData();
   const { showToast } = useToast();
 
-  const isReschedule = data?.mode === 'reschedule';
+  const isClientResponse = data?.mode === 'client_reschedule_response';
+  const isReschedule = data?.mode === 'reschedule' || isClientResponse;
 
   const [clientName, setClientName] = useState(data?.client || '');
   const [service, setService] = useState(
     isReschedule ? '1' : ''
   );
-  const [date, setDate] = useState(data?.date === 'Hoje' ? '' : data?.date || '');
-  const [time, setTime] = useState(data?.time || '09:00');
+  const [date, setDate] = useState(data?.proposedDate || (data?.date === 'Hoje' ? '' : data?.date || ''));
+  const [time, setTime] = useState(data?.proposedTime || data?.time || '09:00');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,12 +55,13 @@ export const AddAppointmentScreen: React.FC<AddAppointmentScreenProps> = ({
       price: 'R$ 120,00'
     };
 
-    if (isReschedule && data?.id) rescheduleAppointment(data.id, newAppointment.date, newAppointment.time);
+    if (isClientResponse && data?.id) recordClientRescheduleResponse(data.id, newAppointment.date, newAppointment.time);
+    else if (isReschedule && data?.id) rescheduleAppointment(data.id, newAppointment.date, newAppointment.time);
     else addAppointment(newAppointment);
     onSave?.(newAppointment);
 
     if (isReschedule) {
-      showToast('🗓️ Agendamento reagendado com sucesso!', 'success');
+      showToast(isClientResponse ? 'Nova data da cliente registrada para confirmação.' : 'Solicitação de reagendamento enviada à cliente.', 'success');
     } else {
       showToast('✅ Novo agendamento registrado com sucesso!', 'success');
     }
@@ -65,14 +69,16 @@ export const AddAppointmentScreen: React.FC<AddAppointmentScreenProps> = ({
     onClose();
   };
 
-  const pageTitle = isReschedule
-    ? 'Reagendar'
+  const pageTitle = isClientResponse
+    ? 'Data enviada pela cliente'
+    : isReschedule
+    ? 'Sugerir reagendamento'
     : 'Novo Agendamento';
 
   return (
     <>
       <ScreenHeader title={pageTitle} onClose={onClose} />
-      <main className="flex-1 overflow-y-auto p-5 pb-24">
+      <main className="flex-1 min-h-0 overflow-y-auto px-4 py-4 pb-24">
         <form className="space-y-6" onSubmit={handleSubmit}>
           {/* Campo de Cliente: Apenas visível se NÃO for modo bloqueio */}
           <div className="space-y-2">

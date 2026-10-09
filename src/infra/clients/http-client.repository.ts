@@ -26,7 +26,9 @@ interface ApiUpdateResponse {
 const LOCAL_STORAGE_TAGS_KEY = 'lari_nails_client_metadata';
 const LOCAL_STORAGE_MOCK_CLIENTS = 'lari_nails_mock_clients_list';
 
-function getLocalMetadata(): Record<string, { tags?: string[]; bday?: string }> {
+type LocalClientMetadata = { tags?: string[]; bday?: string; email?: string; address?: string };
+
+function getLocalMetadata(): Record<string, LocalClientMetadata> {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_TAGS_KEY);
     return raw ? JSON.parse(raw) : {};
@@ -35,7 +37,7 @@ function getLocalMetadata(): Record<string, { tags?: string[]; bday?: string }> 
   }
 }
 
-function saveLocalMetadata(idOrPhone: string, meta: { tags?: string[]; bday?: string }): void {
+function saveLocalMetadata(idOrPhone: string, meta: LocalClientMetadata): void {
   try {
     const current = getLocalMetadata();
     current[idOrPhone] = { ...current[idOrPhone], ...meta };
@@ -57,6 +59,8 @@ function getLocalMockClients(): ClientEntity[] {
         totalFaltas?: number;
         tags?: string[];
         bday?: string;
+        email?: string;
+        address?: string;
         lastVisit?: string;
       }>;
       return parsed.map((item) => new ClientEntity(item));
@@ -76,6 +80,8 @@ function getLocalMockClients(): ClientEntity[] {
         totalFaltas: 0,
         tags: c.tags,
         bday: c.bday,
+        email: c.email,
+        address: c.address,
         lastVisit: c.lastVisit,
       })
   );
@@ -93,6 +99,8 @@ function saveLocalMockClients(clients: ClientEntity[]): void {
       totalFaltas: c.totalFaltas,
       tags: c.tags,
       bday: c.bday,
+      email: c.email,
+      address: c.address,
       lastVisit: c.lastVisit,
     }));
     localStorage.setItem(LOCAL_STORAGE_MOCK_CLIENTS, JSON.stringify(data));
@@ -119,6 +127,8 @@ export class HttpClientRepository implements IClientRepository {
       totalFaltas: dto.totalFaltas,
       tags: metadata.tags || ['Nova'],
       bday: metadata.bday,
+      email: metadata.email,
+      address: metadata.address,
       lastVisit: 'Recente',
       createdAt: dto.createdAt,
       updatedAt: dto.updatedAt,
@@ -156,17 +166,19 @@ export class HttpClientRepository implements IClientRepository {
         totalFaltas: input.totalFaltas ?? 0,
       });
 
-      if (input.tags || input.bday) {
+      if (input.tags || input.bday || input.email || input.address) {
         saveLocalMetadata(input.telefone.replace(/\D/g, ''), {
           tags: input.tags,
           bday: input.bday,
+          email: input.email,
+          address: input.address,
         });
       }
 
       const all = await this.findAll();
       const created = all.find((c) => c.cleanPhone === input.telefone.replace(/\D/g, ''));
-      if (created && (input.tags || input.bday)) {
-        saveLocalMetadata(created.id!, { tags: input.tags, bday: input.bday });
+      if (created && (input.tags || input.bday || input.email || input.address)) {
+        saveLocalMetadata(created.id!, { tags: input.tags, bday: input.bday, email: input.email, address: input.address });
       }
 
       return (
@@ -178,6 +190,8 @@ export class HttpClientRepository implements IClientRepository {
           totalFaltas: input.totalFaltas,
           tags: input.tags,
           bday: input.bday,
+          email: input.email,
+          address: input.address,
         })
       );
     } catch {
@@ -207,8 +221,8 @@ export class HttpClientRepository implements IClientRepository {
         ...(input.totalFaltas !== undefined && { totalFaltas: input.totalFaltas }),
       });
 
-      if (input.tags || input.bday) {
-        saveLocalMetadata(input.id, { tags: input.tags, bday: input.bday });
+      if (input.tags || input.bday || input.email || input.address) {
+        saveLocalMetadata(input.id, { tags: input.tags, bday: input.bday, email: input.email, address: input.address });
       }
 
       return this.mapDtoToEntity(response.client);
@@ -223,6 +237,8 @@ export class HttpClientRepository implements IClientRepository {
           status: input.status,
           tags: input.tags,
           bday: input.bday,
+          email: input.email,
+          address: input.address,
         });
         saveLocalMockClients(current);
         return client;

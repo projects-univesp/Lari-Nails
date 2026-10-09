@@ -16,6 +16,8 @@ export const AddClientScreen: React.FC<AddClientScreenProps> = ({ onClose }) => 
 
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
+  const [email, setEmail] = useState('');
+  const [address, setAddress] = useState('');
   const [bday, setBday] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>(['Nova']);
 
@@ -33,6 +35,8 @@ export const AddClientScreen: React.FC<AddClientScreenProps> = ({ onClose }) => 
       await createClient({
         nome,
         telefone,
+        email: email || undefined,
+        address: address || undefined,
         status: 'ativo',
         totalFaltas: 0,
         tags: selectedTags,
@@ -48,7 +52,7 @@ export const AddClientScreen: React.FC<AddClientScreenProps> = ({ onClose }) => 
   return (
     <>
       <ScreenHeader title="Nova Cliente" onClose={onClose} />
-      <main className="flex-1 overflow-y-auto p-5 pb-24">
+      <main className="flex-1 min-h-0 overflow-y-auto px-4 py-4 pb-24">
         <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4 bg-white p-5 rounded-3xl shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
             <div className="space-y-2">
@@ -77,6 +81,32 @@ export const AddClientScreen: React.FC<AddClientScreenProps> = ({ onClose }) => 
                 onChange={(e) => setTelefone(e.target.value)}
                 className="w-full px-4 py-3.5 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-[#FF85C2] text-gray-700 font-medium"
                 required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-gray-500 px-1">
+                E-mail (Opcional)
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="cliente@email.com"
+                className="w-full min-w-0 px-4 py-3.5 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-[#FF85C2] text-gray-700 font-medium"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-gray-500 px-1">
+                Endereço (Opcional)
+              </label>
+              <input
+                type="text"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Rua, número, bairro"
+                className="w-full min-w-0 px-4 py-3.5 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-[#FF85C2] text-gray-700 font-medium"
               />
             </div>
 

@@ -7,6 +7,8 @@ export interface CreateClientInput {
   totalFaltas?: number;
   tags?: string[];
   bday?: string;
+  email?: string;
+  address?: string;
 }
 
 export interface UpdateClientInput {
@@ -17,6 +19,8 @@ export interface UpdateClientInput {
   totalFaltas?: number;
   tags?: string[];
   bday?: string;
+  email?: string;
+  address?: string;
 }
 
 export interface IClientRepository {

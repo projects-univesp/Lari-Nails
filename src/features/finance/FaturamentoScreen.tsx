@@ -9,7 +9,9 @@ import {
   Banknote,
   QrCode,
   X,
-  Check
+  Check,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { ScreenHeader } from '../../components/common/ScreenHeader';
 import { useData } from '../../context/DataContext';
@@ -21,6 +23,8 @@ interface FaturamentoScreenProps {
   onOpenScreen?: ScreenOpenHandler;
 }
 
+const parseAmount = (amount: string) => Number(amount.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.')) || 0;
+
 export const FaturamentoScreen: React.FC<FaturamentoScreenProps> = ({ onClose }) => {
   const { transactions, updateTransactionPayment } = useData();
   const { showToast } = useToast();
@@ -28,33 +32,83 @@ export const FaturamentoScreen: React.FC<FaturamentoScreenProps> = ({ onClose })
   const [periodFilter, setPeriodFilter] = useState<'mes' | 'semana' | 'hoje'>('mes');
   const [selectedPendingTx, setSelectedPendingTx] = useState<Transaction | null>(null);
   const [modalMethod, setModalMethod] = useState<PaymentMethod>('Pix');
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportStart, setExportStart] = useState('');
+  const [exportEnd, setExportEnd] = useState('');
 
-  // Cálculos dinâmicos a partir das transações reais
-  const receivedTransactions = transactions.filter((t) => t.status === 'recebido');
+  const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const todayKey = dateKey(new Date());
+  const weekStart = new Date();
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+  const monthLabel = selectedMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  const filterStart = periodFilter === 'hoje' ? todayKey : periodFilter === 'semana' ? dateKey(weekStart) : dateKey(selectedMonth);
+  const filterEnd = periodFilter === 'hoje' ? todayKey : periodFilter === 'semana' ? dateKey(new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6)) : dateKey(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0));
+  const transactionDate = (transaction: Transaction) => {
+    if (transaction.dateKey) return transaction.dateKey;
+    if (transaction.date.startsWith('Hoje')) return todayKey;
+    if (transaction.date.startsWith('Ontem')) return dateKey(new Date(Date.now() - 86400000));
+    return '';
+  };
+  const filteredTransactions = transactions.filter((transaction) => {
+    const date = transactionDate(transaction);
+    return date >= filterStart && date <= filterEnd;
+  });
+  const receivedTransactions = filteredTransactions.filter((t) => t.status === 'recebido');
+  const dueTodayTransactions = transactions.filter((t) => t.status === 'pendente' && t.agreedPaymentDate === todayKey);
 
   const totalReceived = receivedTransactions.reduce((acc, curr) => {
-    const numeric = curr.numericAmount ?? (parseFloat(curr.amount.replace(/[^\d,]/g, '').replace(',', '.')) || 0);
+    const numeric = curr.numericAmount ?? parseAmount(curr.amount);
     return acc + numeric;
   }, 0);
 
   const pixTotal = receivedTransactions
     .filter((t) => t.method?.toLowerCase().includes('pix'))
-    .reduce((acc, curr) => acc + (curr.numericAmount || 0), 0);
+    .reduce((acc, curr) => acc + (curr.numericAmount ?? parseAmount(curr.amount)), 0);
 
   const cardTotal = receivedTransactions
     .filter((t) => t.method?.toLowerCase().includes('cart'))
-    .reduce((acc, curr) => acc + (curr.numericAmount || 0), 0);
+    .reduce((acc, curr) => acc + (curr.numericAmount ?? parseAmount(curr.amount)), 0);
 
   const cashTotal = receivedTransactions
     .filter((t) => t.method?.toLowerCase().includes('dinheiro'))
-    .reduce((acc, curr) => acc + (curr.numericAmount || 0), 0);
+    .reduce((acc, curr) => acc + (curr.numericAmount ?? parseAmount(curr.amount)), 0);
 
-  const totalCount = transactions.length;
-  const ticketMedio = totalCount > 0 ? (totalReceived / (receivedTransactions.length || 1)) : 0;
+  const totalCount = filteredTransactions.length;
+  const ticketMedio = receivedTransactions.length > 0 ? totalReceived / receivedTransactions.length : 0;
 
-  const pixPercent = totalReceived > 0 ? Math.round((pixTotal / totalReceived) * 100) : 60;
-  const cardPercent = totalReceived > 0 ? Math.round((cardTotal / totalReceived) * 100) : 30;
-  const cashPercent = totalReceived > 0 ? Math.max(0, 100 - pixPercent - cardPercent) : 10;
+  const pixPercent = totalReceived > 0 ? Math.round((pixTotal / totalReceived) * 100) : 0;
+  const cardPercent = totalReceived > 0 ? Math.round((cardTotal / totalReceived) * 100) : 0;
+  const cashPercent = totalReceived > 0 ? Math.round((cashTotal / totalReceived) * 100) : 0;
+
+  const openExportDialog = () => {
+    setExportStart(filterStart);
+    setExportEnd(filterEnd);
+    setExportOpen(true);
+  };
+
+  const downloadReport = () => {
+    if (!exportStart || !exportEnd || exportStart > exportEnd) {
+      showToast('Selecione um intervalo de datas válido.', 'warning');
+      return;
+    }
+    const rows = transactions.filter((transaction) => {
+      const date = transactionDate(transaction);
+      return date && date >= exportStart && date <= exportEnd;
+    });
+    const csv = [
+      ['Data', 'Cliente', 'Serviço', 'Valor', 'Pagamento', 'Status', 'Data combinada'].join(';'),
+      ...rows.map((transaction) => [transactionDate(transaction), transaction.client, transaction.service, transaction.amount, transaction.method, transaction.status, transaction.agreedPaymentDate || ''].map((value) => `"${String(value).replaceAll('"', '""')}"`).join(';')),
+    ].join('\r\n');
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' }));
+    link.download = `faturamento-${exportStart}-${exportEnd}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    setExportOpen(false);
+    showToast('Relatório baixado.', 'success');
+  };
 
   const handleConfirmPaymentUpdate = () => {
     if (selectedPendingTx) {
@@ -75,7 +129,7 @@ export const FaturamentoScreen: React.FC<FaturamentoScreenProps> = ({ onClose })
         rightAction={
           <button
             type="button"
-            onClick={() => showToast('📊 Relatório financeiro exportado com sucesso!')}
+            onClick={openExportDialog}
             aria-label="Exportar relatório"
             className="p-2 rounded-full hover:bg-[var(--brand-pink-bg)] text-gray-500 hover:text-[#FF85C2] transition-colors cursor-pointer"
           >
@@ -118,7 +172,7 @@ export const FaturamentoScreen: React.FC<FaturamentoScreenProps> = ({ onClose })
                 : 'text-gray-400 hover:bg-gray-50'
             }`}
           >
-            Setembro
+            Mês
           </button>
         </div>
 
@@ -141,9 +195,13 @@ export const FaturamentoScreen: React.FC<FaturamentoScreenProps> = ({ onClose })
                   ? 'Recebido na Semana'
                   : 'Faturamento do Mês'}
               </span>
-              <span className="text-[11px] font-semibold bg-white/20 px-2.5 py-1 rounded-full backdrop-blur-sm">
-                Setembro 2026
-              </span>
+                {periodFilter === 'mes' ? (
+                  <div className="flex items-center gap-1 rounded-full bg-white/20 px-1 py-0.5">
+                    <button type="button" aria-label="Mês anterior" onClick={() => setSelectedMonth((month) => new Date(month.getFullYear(), month.getMonth() - 1, 1))} className="p-1 rounded-full hover:bg-white/20"><ChevronLeft size={15} /></button>
+                    <span className="min-w-28 text-center text-[11px] font-semibold capitalize">{monthLabel}</span>
+                    <button type="button" aria-label="Próximo mês" onClick={() => setSelectedMonth((month) => new Date(month.getFullYear(), month.getMonth() + 1, 1))} className="p-1 rounded-full hover:bg-white/20"><ChevronRight size={15} /></button>
+                  </div>
+                ) : <span className="text-[11px] font-semibold bg-white/20 px-2.5 py-1 rounded-full backdrop-blur-sm">{periodFilter === 'hoje' ? new Date().toLocaleDateString('pt-BR') : 'Segunda a domingo'}</span>}
             </div>
 
             <div className="mt-3">
@@ -158,7 +216,7 @@ export const FaturamentoScreen: React.FC<FaturamentoScreenProps> = ({ onClose })
                 <span>+12% vs. mês passado</span>
               </div>
               <span className="text-[11px] text-white/80 font-medium">
-                {receivedTransactions.length} recebidos
+                {receivedTransactions.length} recebidos de {totalCount} lançamentos
               </span>
             </div>
           </div>
@@ -209,7 +267,7 @@ export const FaturamentoScreen: React.FC<FaturamentoScreenProps> = ({ onClose })
         <div className="bg-white p-5 rounded-3xl shadow-[0_2px_15px_rgba(0,0,0,0.02)] border border-gray-50 space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="font-bold text-gray-800 text-sm">Distribuição por Pagamento</h4>
-            <span className="text-xs text-gray-400 font-medium">Pix lidera</span>
+            <span className="text-xs text-gray-400 font-medium">{monthLabel}</span>
           </div>
 
           <div className="space-y-2 pt-1">
@@ -249,11 +307,11 @@ export const FaturamentoScreen: React.FC<FaturamentoScreenProps> = ({ onClose })
         <div className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <h3 className="font-bold text-gray-800 text-sm">Últimas Transações</h3>
-            <span className="text-[11px] text-gray-400 font-medium">Toque nas pendentes para baixar</span>
+            <span className="text-[11px] text-gray-400 font-medium">Pendências incluídas no período</span>
           </div>
 
           <div className="space-y-2.5">
-            {transactions.map((tx) => {
+            {filteredTransactions.map((tx) => {
               const isPendente = tx.status === 'pendente';
 
               return (
@@ -307,8 +365,21 @@ export const FaturamentoScreen: React.FC<FaturamentoScreenProps> = ({ onClose })
                 </div>
               );
             })}
+            {filteredTransactions.length === 0 && <p className="rounded-2xl bg-white p-5 text-center text-sm text-gray-500">Nenhum lançamento neste período.</p>}
           </div>
         </div>
+
+        {dueTodayTransactions.length > 0 && (
+          <section className="space-y-2" aria-label="Pagamentos combinados para hoje">
+            <h3 className="px-1 text-sm font-bold text-amber-800">Lembretes de pagamento para hoje</h3>
+            {dueTodayTransactions.map((transaction) => (
+              <button key={`due-${transaction.id}`} type="button" onClick={() => setSelectedPendingTx(transaction)} className="flex w-full min-w-0 items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-left">
+                <span className="min-w-0"><span className="block truncate text-sm font-bold text-gray-800">{transaction.client}</span><span className="block truncate text-xs text-gray-600">{transaction.service} · vencimento combinado hoje</span></span>
+                <span className="shrink-0 text-sm font-extrabold text-amber-800">{transaction.amount}</span>
+              </button>
+            ))}
+          </section>
+        )}
       </main>
 
       {/* Modal Rápido de Quitação de Transação Pendente */}
@@ -402,6 +473,26 @@ export const FaturamentoScreen: React.FC<FaturamentoScreenProps> = ({ onClose })
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {exportOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="presentation">
+          <section role="dialog" aria-modal="true" aria-labelledby="export-title" className="w-full max-w-sm space-y-5 rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <h2 id="export-title" className="font-bold text-gray-800">Baixar faturamento</h2>
+              <button type="button" onClick={() => setExportOpen(false)} aria-label="Fechar" className="rounded-full p-2 text-gray-500 hover:bg-gray-100"><X size={18} /></button>
+            </div>
+            <p className="text-sm text-gray-600">Escolha o período da planilha.</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="min-w-0 text-xs font-semibold text-gray-600">De<input type="date" value={exportStart} onChange={(event) => setExportStart(event.target.value)} className="mt-1 w-full min-w-0 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm" /></label>
+              <label className="min-w-0 text-xs font-semibold text-gray-600">Até<input type="date" value={exportEnd} onChange={(event) => setExportEnd(event.target.value)} className="mt-1 w-full min-w-0 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm" /></label>
+            </div>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setExportOpen(false)} className="flex-1 rounded-xl bg-gray-100 px-4 py-3 text-sm font-bold text-gray-700">Cancelar</button>
+              <button type="button" onClick={downloadReport} className="flex-1 rounded-xl bg-[#FF85C2] px-4 py-3 text-sm font-bold text-white">Baixar CSV</button>
+            </div>
+          </section>
         </div>
       )}
     </>

@@ -1,4 +1,12 @@
-export type AppointmentStatus = 'aguardando' | 'confirmado' | 'pendente' | 'concluido' | 'bloqueado';
+export type AppointmentStatus =
+  | 'aguardando'
+  | 'reagendamento_solicitado'
+  | 'aguardando_reagendamento'
+  | 'confirmado'
+  | 'pendente'
+  | 'concluido'
+  | 'cancelado'
+  | 'bloqueado';
 
 export type PaymentStatus = 'recebido' | 'pendente';
 
@@ -19,6 +27,9 @@ export interface Appointment {
   source?: AppointmentSource;
   createdAt?: string;
   updatedAt?: string;
+  proposedDate?: string;
+  proposedTime?: string;
+  agreedPaymentDate?: string;
 }
 
 export interface AgendaBlock {
@@ -49,6 +60,8 @@ export interface Client {
   tags: string[];
   lastVisit: string;
   bday: string;
+  email?: string;
+  address?: string;
 }
 
 export interface Service {
@@ -61,6 +74,7 @@ export interface Service {
 
 export interface ClientHistoryItem {
   id?: number;
+  client?: string;
   date: string;
   service: string;
   status: AppointmentStatus;
@@ -68,6 +82,9 @@ export interface ClientHistoryItem {
   paymentStatus?: PaymentStatus;
   paymentMethod?: PaymentMethod | string;
   externalId?: string;
+  appointmentId?: number;
+  transactionId?: number;
+  agreedPaymentDate?: string;
 }
 
 export interface Transaction {
@@ -80,6 +97,8 @@ export interface Transaction {
   method: string;
   status: PaymentStatus;
   date: string;
+  dateKey?: string;
+  agreedPaymentDate?: string;
 }
 
 export type ScreenName =

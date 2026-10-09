@@ -60,7 +60,7 @@ export const BusinessHoursScreen: React.FC<BusinessHoursScreenProps> = ({ onClos
   return (
     <>
       <ScreenHeader title="Horários" onClose={onClose} />
-      <main className="flex-1 overflow-y-auto p-5 pb-28 space-y-6">
+      <main className="flex-1 min-h-0 overflow-y-auto px-4 py-4 pb-28 space-y-6">
         {/* Banner Informativo */}
         <div className="bg-gradient-to-r from-pink-50 to-white p-5 rounded-3xl border border-pink-100/70 shadow-[0_2px_15px_rgba(0,0,0,0.02)] flex items-start gap-3.5">
           <div className="p-2.5 rounded-2xl bg-[var(--brand-pink-bg)] text-[#FF85C2] mt-0.5">
@@ -112,10 +112,12 @@ export const BusinessHoursScreen: React.FC<BusinessHoursScreenProps> = ({ onClos
                   </div>
 
                   {/* Toggle estilizado */}
-                  <div
+                  <button
+                    type="button"
                     onClick={() => toggleDay(item.id)}
                     role="switch"
                     aria-checked={item.isOpen}
+                    aria-label={`${item.day}: ${item.isOpen ? 'aberto' : 'fechado'}`}
                     className={`w-12 h-7 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-300 ${
                       item.isOpen ? 'bg-[#FF85C2]' : 'bg-gray-200'
                     }`}
@@ -125,12 +127,12 @@ export const BusinessHoursScreen: React.FC<BusinessHoursScreenProps> = ({ onClos
                         item.isOpen ? 'translate-x-5' : 'translate-x-0'
                       }`}
                     />
-                  </div>
+                  </button>
                 </div>
 
                 {/* Inputs de horário e almoço por dia */}
                 {item.isOpen && (
-                  <div className="mt-4 pt-3 border-t border-gray-50 flex items-center gap-3 animate-in fade-in duration-200">
+                  <div className="mt-4 pt-3 border-t border-gray-50 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 animate-in fade-in duration-200">
                     <div className="flex-1">
                       <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-1">
                         Início
@@ -151,8 +153,6 @@ export const BusinessHoursScreen: React.FC<BusinessHoursScreenProps> = ({ onClos
                       <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-1">Até</label>
                       <input type="time" value={item.lunchEnd} onChange={(e) => updateLunch(item.id, 'lunchEnd', e.target.value)} className="w-full px-3 py-2 rounded-2xl bg-gray-50 border border-gray-100 font-semibold text-xs text-gray-700" />
                     </div>
-
-                    <span className="text-gray-300 text-xs font-bold pt-4">às</span>
 
                     <div className="flex-1">
                       <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-1">

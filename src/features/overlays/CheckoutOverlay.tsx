@@ -31,6 +31,7 @@ export const CheckoutOverlay: React.FC<CheckoutOverlayProps> = ({ appointment, o
   const [priceInput, setPriceInput] = useState(defaultRawPrice);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('recebido');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Pix');
+  const [agreedPaymentDate, setAgreedPaymentDate] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +41,7 @@ export const CheckoutOverlay: React.FC<CheckoutOverlayProps> = ({ appointment, o
 
     const historyId = (currentApt as Appointment & { historyId?: number }).historyId;
     if (historyId && paymentStatus === 'recebido') updateClientHistoryPayment(historyId, formattedAmount, selectedMethod);
-    else completeAppointmentCheckout(currentApt, formattedAmount, paymentStatus, selectedMethod);
+    else completeAppointmentCheckout(currentApt, formattedAmount, paymentStatus, selectedMethod, agreedPaymentDate || undefined);
 
     showToast(
       paymentStatus === 'recebido'
@@ -55,7 +56,7 @@ export const CheckoutOverlay: React.FC<CheckoutOverlayProps> = ({ appointment, o
   return (
     <>
       <ScreenHeader title="Lançamento Financeiro" onClose={onClose} />
-      <main className="flex-1 overflow-y-auto p-5 pb-28 space-y-6">
+      <main className="flex-1 min-h-0 overflow-y-auto px-4 py-4 pb-28 space-y-6">
         {/* Resumo do Atendimento */}
         <div className="bg-white p-5 rounded-3xl shadow-[0_2px_15px_rgba(0,0,0,0.02)] border border-gray-50 flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-[var(--brand-pink-bg)] text-[#FF85C2] flex items-center justify-center font-bold text-xl border border-[var(--brand-pink-light)]">
@@ -129,6 +130,23 @@ export const CheckoutOverlay: React.FC<CheckoutOverlayProps> = ({ appointment, o
           </div>
 
           {/* 3. Forma de Pagamento (se 'recebido') */}
+          {paymentStatus === 'pendente' && (
+            <div className="bg-white p-5 rounded-3xl border border-amber-100 space-y-2">
+              <label htmlFor="agreed-payment-date" className="text-xs font-bold uppercase tracking-widest text-gray-500 block">
+                Data combinada para pagamento
+              </label>
+              <input
+                id="agreed-payment-date"
+                type="date"
+                value={agreedPaymentDate}
+                onChange={(event) => setAgreedPaymentDate(event.target.value)}
+                min={new Date().toISOString().slice(0, 10)}
+                required
+                className="w-full min-w-0 px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-700"
+              />
+            </div>
+          )}
+
           {paymentStatus === 'recebido' && (
             <div className="bg-white p-5 rounded-3xl shadow-[0_2px_15px_rgba(0,0,0,0.02)] border border-gray-50 space-y-3 animate-in fade-in duration-200">
               <label className="text-xs font-bold uppercase tracking-widest text-gray-500 block px-1">

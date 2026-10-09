@@ -10,9 +10,15 @@ interface AgendaTabProps {
 
 export const AgendaTab: React.FC<AgendaTabProps> = ({ onOpenScreen }) => {
   const [viewMode, setViewMode] = useState<AgendaViewMode>('dia');
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
+
+  const selectDay = (date: Date) => {
+    setSelectedDate(date);
+    setViewMode('dia');
+  };
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 h-full flex flex-col">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 flex-1 min-h-0 flex flex-col">
       {/* Seletor de Visão */}
       <div className="flex bg-white p-1 rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.02)] mx-1">
         <button
@@ -44,9 +50,9 @@ export const AgendaTab: React.FC<AgendaTabProps> = ({ onOpenScreen }) => {
         </button>
       </div>
 
-      {viewMode === 'dia' && <AgendaViewDia onOpenScreen={onOpenScreen} />}
-      {viewMode === 'semana' && <AgendaViewSemana />}
-      {viewMode === 'mes' && <AgendaViewMes />}
+      {viewMode === 'dia' && <AgendaViewDia selectedDate={selectedDate} onSelectedDateChange={setSelectedDate} onOpenScreen={onOpenScreen} />}
+      {viewMode === 'semana' && <AgendaViewSemana selectedDate={selectedDate} onSelectDate={selectDay} />}
+      {viewMode === 'mes' && <AgendaViewMes selectedDate={selectedDate} onSelectDate={selectDay} />}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppHeader } from './components/layout/AppHeader';
@@ -16,7 +16,8 @@ import { AgendaTab } from './features/agenda/AgendaTab';
 import { ClientesTab } from './features/clients/ClientesTab';
 import { ConfiguracoesTab } from './features/settings/ConfiguracoesTab';
 import { OverlayScreen } from './features/overlays/OverlayScreen';
-import { ButterflyIcon } from './components/common/ButterflyIcon';
+import { useToast } from './context/ToastContext';
+import { useClients } from './presentation/hooks/useClients';
 import type { ScreenStackItem, ScreenName, TabType } from './types';
 
 const queryClient = new QueryClient({
@@ -30,9 +31,28 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   const { currentUser, isSetupCompleted, isLoading } = useAuth();
+  const { clients } = useClients();
+  const { showToast } = useToast();
   const [isForgotPassword, setIsForgotPassword] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [screenStack, setScreenStack] = useState<ScreenStackItem[]>([]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const today = new Date();
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const birthdayClients = clients.filter((client) => {
+      if (!client.bday) return false;
+      const parts = client.bday.split(/[/-]/).map(Number);
+      const month = client.bday.includes('-') ? parts[1] : parts[1];
+      const day = client.bday.includes('-') ? parts[2] : parts[0];
+      return month === today.getMonth() + 1 && day === today.getDate();
+    });
+    if (birthdayClients.length === 0 || sessionStorage.getItem(`birthday-reminder-${todayKey}`)) return;
+    sessionStorage.setItem(`birthday-reminder-${todayKey}`, 'shown');
+    const names = birthdayClients.map((client) => client.nome).join(', ');
+    showToast(`Hoje é aniversário de ${names}. Confira o perfil e envie uma mensagem!`, 'info');
+  }, [clients, currentUser, showToast]);
 
   const openScreen = (screenName: ScreenName, data: unknown = null) => {
     setScreenStack((prev) => [...prev, { name: screenName, data }]);
@@ -46,7 +66,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-gray-900 sm:bg-gray-100 flex justify-center font-brand font-normal text-gray-700">
-      <div className="w-full max-w-md bg-[#FAFAFA] relative shadow-2xl overflow-hidden min-h-screen sm:h-[850px] sm:my-8 sm:rounded-[2.5rem] sm:border-[8px] sm:border-gray-800 flex flex-col">
+      <div className="w-full max-w-md bg-[#FAFAFA] relative shadow-2xl overflow-hidden min-h-screen sm:h-[850px] sm:max-h-[calc(100vh-2rem)] sm:my-8 sm:rounded-[2.5rem] sm:border-[8px] sm:border-gray-800 flex flex-col">
         {/* Notificações Toasts Globais */}
         <ToastContainer />
 
@@ -56,9 +76,10 @@ function AppContent() {
             style={{ backgroundColor: 'var(--brand-pink)' }}
           >
             <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mb-4 backdrop-blur-sm animate-pulse border border-white/30">
-              <ButterflyIcon className="w-10 h-10 text-white" />
+              <span className="font-script text-4xl leading-none tracking-wide">LM</span>
             </div>
-            <h1 className="text-4xl font-script tracking-wide mb-3">Larissa Machado</h1>
+            <h1 className="text-3xl font-script tracking-wide mb-1 text-center">Larissa Machado</h1>
+            <p className="text-[10px] font-bold uppercase tracking-[0.5em] text-white/80 mb-3">Nails</p>
             <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin mt-2" />
           </div>
         ) : isSetupCompleted === false ? (
@@ -79,8 +100,8 @@ function AppContent() {
               />
             ) : (
               <>
-                <AppHeader />
-                <main className="p-4 pb-28 overflow-y-auto h-full no-scrollbar scroll-smooth flex-1">
+                <AppHeader onOpenScreen={openScreen} />
+                <main className="flex-1 min-h-0 overflow-y-auto px-4 py-4 pb-28 no-scrollbar scroll-smooth">
                   {activeTab === 'dashboard' && <DashboardTab onOpenScreen={openScreen} />}
                   {activeTab === 'agenda' && <AgendaTab onOpenScreen={openScreen} />}
                   {activeTab === 'clientes' && <ClientesTab onOpenScreen={openScreen} />}
