@@ -1,20 +1,25 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { ChevronRight } from 'lucide-react';
 
-export const AgendaViewMes: React.FC = () => {
-  const [currentMonth, setCurrentMonth] = useState(new Date(2026, 8, 1));
-  const [selectedDay, setSelectedDay] = useState<number>(5);
+interface AgendaViewMesProps {
+  selectedDate: Date;
+  onSelectDate: (date: Date) => void;
+}
 
-  const month = { name: currentMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }), daysInMonth: new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate(), startDay: currentMonth.getDay() };
+export const AgendaViewMes: React.FC<AgendaViewMesProps> = ({ selectedDate, onSelectDate }) => {
+  const currentMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+  const month = {
+    name: currentMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+    daysInMonth: new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate(),
+    startDay: new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getDay(),
+  };
 
   const handlePrev = () => {
-    setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-    setSelectedDay(1);
+    onSelectDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
   };
 
   const handleNext = () => {
-    setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-    setSelectedDay(1);
+    onSelectDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
 
   // Monta semanas dinâmicas
@@ -66,29 +71,30 @@ export const AgendaViewMes: React.FC = () => {
 
         <div className="grid grid-cols-7 gap-1">
           {gridCells.map((day, idx) => {
-            const isSelected = day === selectedDay;
-            const hasDot = day !== null && (day % 3 === 0 || day === 5 || day === 12);
+            if (day === null) {
+              return <div key={idx} className="aspect-square flex flex-col items-center justify-center relative p-0.5" />;
+            }
+
+            const cellDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+            const isSelected = cellDate.toDateString() === selectedDate.toDateString();
+            const hasDot = day % 3 === 0 || day === 5 || day === 12;
 
             return (
               <div key={idx} className="aspect-square flex flex-col items-center justify-center relative p-0.5">
-                {day !== null ? (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDay(day)}
-                    className={`w-full h-full rounded-2xl flex flex-col items-center justify-center text-xs font-semibold cursor-pointer transition-all ${
-                      isSelected
-                        ? 'bg-[#FF85C2] text-white shadow-md font-bold scale-105'
-                        : 'text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <span>{day}</span>
-                    {hasDot && !isSelected && (
-                      <div className="w-1 h-1 rounded-full bg-[#FF85C2] mt-0.5" />
-                    )}
-                  </button>
-                ) : (
-                  <div className="w-full h-full" />
-                )}
+                <button
+                  type="button"
+                  onClick={() => onSelectDate(cellDate)}
+                  className={`w-full h-full rounded-2xl flex flex-col items-center justify-center text-xs font-semibold cursor-pointer transition-all ${
+                    isSelected
+                      ? 'bg-[#FF85C2] text-white shadow-md font-bold scale-105'
+                      : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <span>{day}</span>
+                  {hasDot && !isSelected && (
+                    <div className="w-1 h-1 rounded-full bg-[#FF85C2] mt-0.5" />
+                  )}
+                </button>
               </div>
             );
           })}

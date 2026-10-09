@@ -46,16 +46,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onForgotPassword }) =>
 
       <div className="flex-1 flex flex-col items-center justify-center px-8 z-10 animate-in fade-in slide-in-from-bottom-8 duration-700">
         <div className="flex flex-col items-center text-white mb-14 relative w-full">
-          <div className="flex items-end justify-center w-full relative h-20 mb-2">
-            <div className="absolute left-1/4 h-20 w-0.5 bg-white" />
-            <div className="text-7xl font-extralight tracking-widest absolute right-1/4 flex">
-              <span className="font-light">M</span>
-            </div>
+          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full border-2 border-white/80 bg-white/10 shadow-[0_10px_25px_rgba(255,255,255,0.12)] backdrop-blur-sm">
+            <span className="font-script text-5xl leading-none tracking-wide">LM</span>
           </div>
-          <h1 className="text-5xl font-script tracking-wide whitespace-nowrap z-10 relative">
+          <h1 className="text-4xl font-script tracking-wide whitespace-nowrap z-10 relative text-center">
             Larissa Machado
           </h1>
-          <div className="w-4/5 h-10 border-b-2 border-l-2 border-r-2 border-white mt-1 relative flex justify-end items-end pr-2">
+          <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.45em] text-white/75">
+            Nails
+          </p>
+          <div className="mt-4 w-28 h-10 border-b-2 border-l-2 border-r-2 border-white/90 relative flex justify-end items-end pr-2">
             <ButterflyIcon className="w-8 h-8 text-white absolute -right-4 -bottom-4 bg-[#FF85C2]" />
           </div>
         </div>

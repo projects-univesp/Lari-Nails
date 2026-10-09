@@ -7,6 +7,12 @@ import type {
   Transaction
 } from '../types';
 
+const relativeDateKey = (daysAgo: number) => {
+  const date = new Date();
+  date.setDate(date.getDate() - daysAgo);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
 export const INITIAL_AGENDA_BLOCKS = [
   { id: 1, reason: 'Compromisso pessoal', date: 'Hoje', startTime: '16:30', endTime: '17:30' },
 ];
@@ -38,7 +44,7 @@ export const INITIAL_APPOINTMENTS: Appointment[] = [
     time: '14:00',
     client: 'Carla Dias',
     service: 'Alongamento Acrílico',
-    status: 'pendente',
+    status: 'aguardando',
     date: 'Hoje',
     price: 'R$ 180,00',
     paymentStatus: 'pendente'
@@ -68,6 +74,7 @@ export const INITIAL_SERVICES: Service[] = [
 export const CLIENT_SAMPLE_HISTORY: ClientHistoryItem[] = [
   {
     id: 101,
+    client: 'Amanda Silva',
     date: '15 Ago 2026',
     service: 'Manutenção Fibra',
     status: 'concluido',
@@ -77,6 +84,7 @@ export const CLIENT_SAMPLE_HISTORY: ClientHistoryItem[] = [
   },
   {
     id: 102,
+    client: 'Amanda Silva',
     date: '01 Ago 2026',
     service: 'Manutenção Fibra',
     status: 'concluido',
@@ -85,6 +93,7 @@ export const CLIENT_SAMPLE_HISTORY: ClientHistoryItem[] = [
   },
   {
     id: 103,
+    client: 'Carla Dias',
     date: '18 Jul 2026',
     service: 'Alongamento Acrílico',
     status: 'concluido',
@@ -103,7 +112,8 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     numericAmount: 60,
     method: 'Pix',
     status: 'recebido',
-    date: 'Hoje, 11:30'
+    date: 'Hoje, 11:30',
+    dateKey: relativeDateKey(0),
   },
   {
     id: 2,
@@ -113,7 +123,10 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     numericAmount: 120,
     method: 'Cartão',
     status: 'pendente',
-    date: 'Hoje, 09:00'
+    date: 'Hoje, 09:00',
+    dateKey: relativeDateKey(0),
+    appointmentId: 1,
+    agreedPaymentDate: relativeDateKey(0),
   },
   {
     id: 3,
@@ -123,7 +136,9 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     numericAmount: 180,
     method: 'Pix',
     status: 'pendente',
-    date: 'Ontem, 16:45'
+    date: 'Ontem, 16:45',
+    dateKey: relativeDateKey(1),
+    agreedPaymentDate: relativeDateKey(2),
   },
   {
     id: 4,
@@ -133,7 +148,8 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     numericAmount: 90,
     method: 'Cartão',
     status: 'recebido',
-    date: 'Ontem, 14:00'
+    date: 'Ontem, 14:00',
+    dateKey: relativeDateKey(1),
   },
   {
     id: 5,
@@ -143,7 +159,8 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     numericAmount: 75,
     method: 'Dinheiro',
     status: 'recebido',
-    date: '03 Set, 10:15'
+    date: '03 Set, 10:15',
+    dateKey: relativeDateKey(3),
   },
   {
     id: 6,
@@ -153,7 +170,8 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     numericAmount: 120,
     method: 'Pix',
     status: 'recebido',
-    date: '02 Set, 15:30'
+    date: '02 Set, 15:30',
+    dateKey: relativeDateKey(4),
   },
 ];
 

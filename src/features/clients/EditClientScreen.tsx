@@ -14,6 +14,8 @@ interface ClientLikeData {
   tags?: string[];
   lastVisit?: string;
   bday?: string;
+  email?: string;
+  address?: string;
 }
 
 interface EditClientScreenProps {
@@ -37,11 +39,15 @@ export const EditClientScreen: React.FC<EditClientScreenProps> = ({
   const initialName = c?.nome || c?.name || '';
   const initialPhone = c?.telefone || c?.phone || '';
   const initialBday = c?.bday || '';
+  const initialEmail = c?.email || '';
+  const initialAddress = c?.address || '';
   const initialTags = c?.tags || ['VIP'];
 
   const [name, setName] = useState(initialName);
   const [phone, setPhone] = useState(initialPhone);
   const [bday, setBday] = useState(initialBday);
+  const [email, setEmail] = useState(initialEmail);
+  const [address, setAddress] = useState(initialAddress);
   const [selectedTags, setSelectedTags] = useState<string[]>(initialTags);
 
   const toggleTag = (tag: string) => {
@@ -65,6 +71,8 @@ export const EditClientScreen: React.FC<EditClientScreenProps> = ({
         id,
         nome: name,
         telefone: phone,
+        email: email || undefined,
+        address: address || undefined,
         tags: selectedTags,
         bday: bday || undefined,
       });
@@ -124,6 +132,16 @@ export const EditClientScreen: React.FC<EditClientScreenProps> = ({
                 className="w-full px-4 py-3.5 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-[#FF85C2] text-gray-700 font-medium"
                 required
               />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-gray-500 px-1">E-mail (Opcional)</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full min-w-0 px-4 py-3.5 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-[#FF85C2] text-gray-700 font-medium" />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-gray-500 px-1">Endereço (Opcional)</label>
+              <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} className="w-full min-w-0 px-4 py-3.5 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-[#FF85C2] text-gray-700 font-medium" />
             </div>
 
             <div className="space-y-2">

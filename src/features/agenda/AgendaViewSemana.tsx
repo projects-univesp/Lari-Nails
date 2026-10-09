@@ -1,17 +1,37 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { ChevronRight, Calendar } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 
-export const AgendaViewSemana: React.FC = () => {
+interface AgendaViewSemanaProps {
+  selectedDate: Date;
+  onSelectDate: (date: Date) => void;
+}
+
+export const AgendaViewSemana: React.FC<AgendaViewSemanaProps> = ({ selectedDate, onSelectDate }) => {
   const { appointments } = useData();
-  const [weekStart, setWeekStart] = useState(new Date(2026, 8, 1));
+
+  const weekStart = useMemo(() => {
+    const date = new Date(selectedDate);
+    const day = date.getDay();
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+    date.setDate(diff);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }, [selectedDate]);
+
   const days = useMemo(() => Array.from({ length: 7 }, (_, index) => {
     const date = new Date(weekStart);
     date.setDate(weekStart.getDate() + index);
     const key = date.toISOString().slice(0, 10);
     const items = appointments.filter((item) => item.date === key || item.date === 'Hoje');
-    return { date, count: items.length, pending: items.filter((item) => item.status === 'pendente' || item.status === 'aguardando').length };
-  }), [appointments, weekStart]);
+    return {
+      date,
+      count: items.length,
+      pending: items.filter((item) => item.status === 'pendente' || item.status === 'aguardando').length,
+      isSelected: date.toDateString() === selectedDate.toDateString(),
+    };
+  }), [appointments, selectedDate, weekStart]);
+
   const currentLabel = `${weekStart.toLocaleDateString('pt-BR')} a ${new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6).toLocaleDateString('pt-BR')}`;
 
   return (
@@ -25,7 +45,7 @@ export const AgendaViewSemana: React.FC = () => {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => setWeekStart((prev) => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 7))}
+              onClick={() => onSelectDate(new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() - 7))}
               aria-label="Semana anterior"
               className="p-2 rounded-xl bg-gray-50 text-gray-600 hover:bg-[var(--brand-pink-bg)] hover:text-[#FF85C2] transition-colors cursor-pointer"
             >
@@ -33,7 +53,7 @@ export const AgendaViewSemana: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => setWeekStart((prev) => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 7))}
+              onClick={() => onSelectDate(new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 7))}
               aria-label="Próxima semana"
               className="p-2 rounded-xl bg-gray-50 text-gray-600 hover:bg-[var(--brand-pink-bg)] hover:text-[#FF85C2] transition-colors cursor-pointer"
             >
@@ -46,7 +66,8 @@ export const AgendaViewSemana: React.FC = () => {
           {days.map((day) => (
             <div
               key={day.date.toISOString()}
-              className="flex gap-4 p-3 hover:bg-gray-50 rounded-2xl cursor-pointer transition-colors border border-gray-50 last:border-b-0"
+              onClick={() => onSelectDate(day.date)}
+              className={`flex gap-4 p-3 hover:bg-gray-50 rounded-2xl cursor-pointer transition-colors border ${day.isSelected ? 'border-[#FF85C2] bg-[var(--brand-pink-bg)]' : 'border-gray-50'} last:border-b-0`}
             >
               <div className="w-16 flex flex-col items-center justify-center bg-gray-50 rounded-xl py-2 shrink-0">
                 <span className="text-[10px] uppercase font-bold text-gray-400">{day.date.toLocaleDateString('pt-BR', { weekday: 'short' })}</span>

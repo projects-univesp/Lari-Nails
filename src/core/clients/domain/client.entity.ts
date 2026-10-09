@@ -10,6 +10,8 @@ export interface ClientProps {
   totalFaltas?: number;
   tags?: string[];
   bday?: string;
+  email?: string;
+  address?: string;
   lastVisit?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -24,6 +26,8 @@ export class ClientEntity {
   private _totalFaltas: number;
   private _tags: string[];
   private _bday?: string;
+  private _email?: string;
+  private _address?: string;
   private _lastVisit?: string;
   private readonly _createdAt?: string;
   private _updatedAt?: string;
@@ -38,6 +42,8 @@ export class ClientEntity {
     this._totalFaltas = props.totalFaltas ?? 0;
     this._tags = props.tags ?? [];
     this._bday = props.bday;
+    this._email = props.email;
+    this._address = props.address;
     this._lastVisit = props.lastVisit ?? 'Recente';
     this._createdAt = props.createdAt;
     this._updatedAt = props.updatedAt;
@@ -89,6 +95,14 @@ export class ClientEntity {
     return this._bday;
   }
 
+  get email(): string | undefined {
+    return this._email;
+  }
+
+  get address(): string | undefined {
+    return this._address;
+  }
+
   get lastVisit(): string | undefined {
     return this._lastVisit;
   }
@@ -109,7 +123,7 @@ export class ClientEntity {
     return this._nome.charAt(0).toUpperCase();
   }
 
-  updateData(data: { nome?: string; telefone?: string; status?: ClientStatus; tags?: string[]; bday?: string }): void {
+  updateData(data: { nome?: string; telefone?: string; status?: ClientStatus; tags?: string[]; bday?: string; email?: string; address?: string }): void {
     const newName = data.nome ?? this._nome;
     const newPhone = data.telefone ?? this._telefone;
     this.validate(newName, newPhone, this._totalFaltas);
@@ -119,6 +133,8 @@ export class ClientEntity {
     if (data.status) this._status = data.status;
     if (data.tags) this._tags = data.tags;
     if (data.bday !== undefined) this._bday = data.bday;
+    if (data.email !== undefined) this._email = data.email;
+    if (data.address !== undefined) this._address = data.address;
   }
 
   incrementFaltas(): void {

@@ -17,10 +17,10 @@ export const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> =
   onClose,
   onOpenScreen,
 }) => {
-  const { cancelAppointment } = useData();
+  const { appointments, cancelAppointment, updateAppointmentStatus, confirmAppointmentReschedule, recordClientRescheduleResponse } = useData();
   const { showToast } = useToast();
 
-  const apt: Appointment = appointment || {
+  const apt: Appointment = (appointment?.id ? appointments.find((item) => item.id === appointment.id) : undefined) || appointment || {
     client: 'Cliente',
     time: '00:00',
     date: 'Data',
@@ -30,6 +30,9 @@ export const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> =
   };
 
   const isConcluded = apt.status === 'concluido';
+  const isWaitingForClient = apt.status === 'reagendamento_solicitado';
+  const isWaitingForNailArtist = apt.status === 'aguardando_reagendamento';
+  const canConfirm = apt.status === 'aguardando' || isWaitingForNailArtist;
 
   const handleSendMessage = () => {
     window.open(
@@ -51,6 +54,19 @@ export const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> =
     onOpenScreen('checkout', apt);
   };
 
+  const handleConfirm = () => {
+    if (isWaitingForNailArtist) confirmAppointmentReschedule(apt.id);
+    else updateAppointmentStatus(apt.id, 'confirmado');
+    showToast('Agendamento confirmado.', 'success');
+    onClose();
+  };
+
+  const handleClientAcceptedSuggestion = () => {
+    if (!apt.id || !apt.proposedDate || !apt.proposedTime) return;
+    recordClientRescheduleResponse(apt.id, apt.proposedDate, apt.proposedTime);
+    showToast('Confirmação da cliente registrada. Confirme o novo horário.', 'success');
+  };
+
   return (
     <>
       <ScreenHeader
@@ -58,7 +74,34 @@ export const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> =
         onClose={onClose}
         rightAction={<StatusBadge status={apt.status} />}
       />
-      <main className="flex-1 overflow-y-auto p-5 space-y-6 pb-24">
+      <main className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-6 pb-24">
+        {isWaitingForClient && (
+          <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+            Aguardando confirmação de reagendamento solicitado para a cliente.
+            {apt.proposedDate && <p className="mt-2 font-semibold">Sugestão: {apt.proposedDate} às {apt.proposedTime}</p>}
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <button type="button" onClick={handleClientAcceptedSuggestion} className="rounded-xl bg-white px-3 py-2 text-xs font-bold text-sky-800 border border-sky-200">Registrar aceite da cliente</button>
+              <button type="button" onClick={() => onOpenScreen('add_appointment', { mode: 'client_reschedule_response', ...apt })} className="rounded-xl bg-white px-3 py-2 text-xs font-bold text-sky-800 border border-sky-200">Registrar outra data enviada</button>
+            </div>
+          </div>
+        )}
+        {isWaitingForNailArtist && (
+          <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-900">
+            A cliente confirmou ou enviou uma nova data. Confirme o horário para atualizar a agenda.
+            <p className="mt-2 font-semibold">Nova data: {apt.date} às {apt.time}</p>
+          </div>
+        )}
+        {apt.status === 'aguardando' && (
+          <button type="button" onClick={handleConfirm} className="w-full rounded-2xl bg-emerald-600 py-3.5 text-sm font-bold text-white">Confirmar agendamento</button>
+        )}
+        {canConfirm && isWaitingForNailArtist && (
+          <button type="button" onClick={handleConfirm} className="w-full rounded-2xl bg-emerald-600 py-3.5 text-sm font-bold text-white">Confirmar novo horário</button>
+        )}
+        {isConcluded && apt.paymentStatus === 'pendente' && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            Pagamento pendente{apt.agreedPaymentDate ? `; combinado para ${new Date(`${apt.agreedPaymentDate}T12:00:00`).toLocaleDateString('pt-BR')}` : ', sem data combinada'}.
+          </div>
+        )}
         {/* Card do Cliente e Serviço */}
         <div className="bg-white p-6 rounded-3xl shadow-[0_2px_15px_rgba(0,0,0,0.02)] flex flex-col items-center text-center">
           <div className="w-20 h-20 rounded-full bg-[var(--brand-pink-bg)] text-[#FF85C2] font-light flex items-center justify-center text-3xl mb-4 border-2 border-[var(--brand-pink-light)]">
@@ -92,7 +135,7 @@ export const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> =
         {/* Ações */}
         <div className="space-y-3">
           {/* BOTÃO PRINCIPAL: Concluir Atendimento / Checkout */}
-          {!isConcluded ? (
+          {apt.status === 'confirmado' ? (
             <button
               type="button"
               onClick={handleOpenCheckout}
@@ -100,19 +143,19 @@ export const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> =
             >
               <CheckCircle2 size={20} /> Concluir Atendimento
             </button>
-          ) : (
+          ) : isConcluded ? (
             <div className="w-full py-3.5 rounded-2xl bg-[#e6f7ec] text-[#047857] font-bold text-xs flex items-center justify-center gap-2 uppercase tracking-wider border border-[#a7f3d0]">
-              <CheckCircle2 size={18} /> Atendimento Concluído & Faturado
+              <CheckCircle2 size={18} /> Atendimento Concluído {apt.paymentStatus === 'pendente' ? '• Pagamento pendente' : '• Pago'}
             </div>
-          )}
+          ) : null}
 
-          <button
+          {!isConcluded && !isWaitingForClient && <button
             type="button"
             onClick={() => onOpenScreen('add_appointment', { mode: 'reschedule', ...apt })}
             className="w-full py-4 rounded-2xl bg-[#FAFAFA] border-2 border-gray-100 text-gray-700 font-bold text-sm flex items-center justify-center gap-2 hover:bg-gray-50 active:scale-[0.98] transition-all uppercase tracking-wider cursor-pointer"
           >
             <CalendarDaysIcon size={18} /> Reagendar
-          </button>
+          </button>}
 
           <button
             type="button"
@@ -122,7 +165,7 @@ export const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> =
             <MessageCircle size={18} /> Enviar Mensagem
           </button>
 
-          {!isConcluded && (
+          {!isConcluded && apt.status !== 'cancelado' && (
             <button
               type="button"
               onClick={handleCancelAppointment}

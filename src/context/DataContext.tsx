@@ -34,10 +34,12 @@ interface DataContextType {
   updateAppointmentStatus: (
     id: number | undefined,
     status: AppointmentStatus,
-    paymentInfo?: { amount: string; paymentStatus: PaymentStatus; paymentMethod?: string }
+    paymentInfo?: { amount: string; paymentStatus: PaymentStatus; paymentMethod?: string; agreedPaymentDate?: string }
   ) => void;
   addAppointment: (appointment: Appointment) => void;
   rescheduleAppointment: (id: number | undefined, date: string, time: string) => void;
+  recordClientRescheduleResponse: (id: number | undefined, date: string, time: string) => void;
+  confirmAppointmentReschedule: (id: number | undefined) => void;
   cancelAppointment: (id: number | undefined) => void;
   approvePending: (id: number) => void;
   rejectPending: (id: number) => void;
@@ -57,7 +59,8 @@ interface DataContextType {
     appointment: Appointment,
     amount: string,
     paymentStatus: PaymentStatus,
-    paymentMethod?: string
+    paymentMethod?: string,
+    agreedPaymentDate?: string
   ) => void;
 }
 
@@ -77,7 +80,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateAppointmentStatus = (
     id: number | undefined,
     status: AppointmentStatus,
-    paymentInfo?: { amount: string; paymentStatus: PaymentStatus; paymentMethod?: string }
+    paymentInfo?: { amount: string; paymentStatus: PaymentStatus; paymentMethod?: string; agreedPaymentDate?: string }
   ) => {
     setAppointments((prev) =>
       prev.map((apt) =>
@@ -88,7 +91,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
               ...(paymentInfo && {
                 price: paymentInfo.amount,
                 paymentStatus: paymentInfo.paymentStatus,
-                paymentMethod: paymentInfo.paymentMethod
+                paymentMethod: paymentInfo.paymentMethod,
+                agreedPaymentDate: paymentInfo.agreedPaymentDate
               })
             }
           : apt
@@ -105,12 +109,33 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const rescheduleAppointment = (id: number | undefined, date: string, time: string) => {
-    setAppointments((prev) => prev.map((item) => item.id === id ? { ...item, date, time, status: 'confirmado' } : item));
+    setAppointments((prev) => prev.map((item) => item.id === id
+      ? { ...item, proposedDate: date, proposedTime: time, status: 'reagendamento_solicitado' }
+      : item));
+  };
+
+  const recordClientRescheduleResponse = (id: number | undefined, date: string, time: string) => {
+    setAppointments((prev) => prev.map((item) => item.id === id
+      ? { ...item, date, time, proposedDate: undefined, proposedTime: undefined, status: 'aguardando_reagendamento' }
+      : item));
+  };
+
+  const confirmAppointmentReschedule = (id: number | undefined) => {
+    setAppointments((prev) => prev.map((item) => item.id === id
+      ? {
+          ...item,
+          date: item.proposedDate || item.date,
+          time: item.proposedTime || item.time,
+          proposedDate: undefined,
+          proposedTime: undefined,
+          status: 'confirmado',
+        }
+      : item));
   };
 
   const cancelAppointment = (id: number | undefined) => {
     setAppointments((prev) =>
-      prev.map((apt) => (apt.id === id ? { ...apt, status: 'bloqueado' } : apt))
+      prev.map((apt) => (apt.id === id ? { ...apt, status: 'cancelado' } : apt))
     );
   };
 
@@ -182,11 +207,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       )
     );
 
-    // Também atualiza no histórico do cliente correspondente se houver
+    const transaction = transactions.find((item) => item.id === id);
     setClientHistory((prev) =>
-      prev.map((item, idx) =>
-        idx === 1 && paymentStatus === 'recebido'
-          ? { ...item, paymentStatus: 'recebido', paymentMethod: paymentMethod || 'Pix' }
+      prev.map((item) =>
+        (item.transactionId === id || (transaction?.appointmentId !== undefined && item.appointmentId === transaction.appointmentId))
+          ? { ...item, paymentStatus, paymentMethod: paymentStatus === 'recebido' ? paymentMethod || 'Pix' : item.paymentMethod }
           : item
       )
     );
@@ -196,13 +221,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     appointment: Appointment,
     amount: string,
     paymentStatus: PaymentStatus,
-    paymentMethod?: string
+    paymentMethod?: string,
+    agreedPaymentDate?: string
   ) => {
     // 1. Atualiza o agendamento para concluído
     updateAppointmentStatus(appointment.id, 'concluido', {
       amount,
       paymentStatus,
-      paymentMethod
+      paymentMethod,
+      agreedPaymentDate
     });
 
     // 2. Extrai valor numérico aproximado
@@ -210,8 +237,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const numericAmount = parseFloat(numericStr) || 0;
 
     // 3. Adiciona na lista de transações
+    const transactionId = Date.now();
+    const dateKey = appointment.date === 'Hoje' ? new Date().toISOString().slice(0, 10) : appointment.date;
     const newTx: Transaction = {
-      id: Date.now(),
+      id: transactionId,
       appointmentId: appointment.id,
       client: appointment.client,
       service: appointment.service,
@@ -219,19 +248,25 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       numericAmount,
       method: paymentMethod || 'A Definir',
       status: paymentStatus,
-      date: 'Hoje, ' + (appointment.time || '12:00')
+      date: `${new Date(`${dateKey}T12:00:00`).toLocaleDateString('pt-BR')} ${appointment.time || '12:00'}`,
+      dateKey,
+      agreedPaymentDate
     };
     setTransactions((prev) => [newTx, ...prev]);
 
     // 4. Adiciona no histórico do cliente
     const newHistoryItem: ClientHistoryItem = {
-      id: Date.now(),
+      id: transactionId,
+      client: appointment.client,
       date: 'Hoje',
       service: appointment.service,
       status: 'concluido',
       amount,
       paymentStatus,
-      paymentMethod
+      paymentMethod,
+      appointmentId: appointment.id,
+      transactionId,
+      agreedPaymentDate
     };
     setClientHistory((prev) => [newHistoryItem, ...prev]);
   };
@@ -250,6 +285,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateAppointmentStatus,
         addAppointment,
         rescheduleAppointment,
+        recordClientRescheduleResponse,
+        confirmAppointmentReschedule,
         cancelAppointment,
         approvePending,
         rejectPending,

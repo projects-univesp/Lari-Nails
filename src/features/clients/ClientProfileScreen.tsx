@@ -16,6 +16,8 @@ interface ClientLikeData {
   tags?: string[];
   lastVisit?: string;
   bday?: string;
+  email?: string;
+  address?: string;
   totalFaltas?: number;
 }
 
@@ -40,6 +42,13 @@ export const ClientProfileScreen: React.FC<ClientProfileScreenProps> = ({
   const phone = c?.telefone || c?.phone || '(11) 99999-9999';
   const tags: string[] = c?.tags || ['VIP'];
   const totalFaltas: number = c?.totalFaltas || 0;
+  const bday = c?.bday;
+  const today = new Date();
+  const birthdayParts = bday?.split(/[/-]/).map(Number) || [];
+  const birthdayMonth = birthdayParts.length > 1 ? (bday?.includes('-') ? birthdayParts[1] : birthdayParts[1]) : 0;
+  const birthdayDay = birthdayParts.length > 1 ? (bday?.includes('-') ? birthdayParts[2] : birthdayParts[0]) : 0;
+  const isBirthdayToday = birthdayMonth === today.getMonth() + 1 && birthdayDay === today.getDate();
+  const clientHistoryItems = clientHistory.filter((item) => !item.client || item.client === name);
 
   const handleWhatsApp = () => {
     const cleanPhone = phone.replace(/\D/g, '');
@@ -91,13 +100,16 @@ export const ClientProfileScreen: React.FC<ClientProfileScreenProps> = ({
           </div>
         }
       />
-      <main className="flex-1 overflow-y-auto pb-24">
+      <main className="flex-1 min-h-0 overflow-y-auto pb-24">
         <div className="bg-white px-6 pt-6 pb-8 rounded-b-[2.5rem] shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-col items-center relative">
           <div className="w-24 h-24 rounded-full bg-[var(--brand-pink-bg)] text-[#FF85C2] font-light flex items-center justify-center text-4xl mb-4 border-2 border-[var(--brand-pink-light)]">
             {name.charAt(0).toUpperCase()}
           </div>
           <h2 className="text-2xl font-bold text-gray-800">{name}</h2>
           <p className="text-gray-400 font-medium mt-1">{phone}</p>
+          {(c?.email || c?.address) && <div className="mt-3 space-y-1 text-center text-xs text-gray-500">{c.email && <p>{c.email}</p>}{c.address && <p>{c.address}</p>}</div>}
+          {isBirthdayToday && <p role="status" className="mt-3 rounded-xl bg-pink-50 px-4 py-2 text-sm font-bold text-pink-700">Hoje é aniversário da cliente. Envie uma mensagem de felicitações!</p>}
+          {bday && !isBirthdayToday && <p className="mt-2 text-xs text-gray-400">Aniversário: {bday}</p>}
 
           <div className="flex gap-1.5 mt-3 flex-wrap justify-center">
             {tags.map((tag) => (
@@ -149,7 +161,7 @@ export const ClientProfileScreen: React.FC<ClientProfileScreenProps> = ({
           </div>
 
           <div className="space-y-3">
-            {clientHistory.map((item, idx) => {
+            {clientHistoryItems.map((item, idx) => {
               const isReceived = item.paymentStatus === 'recebido';
 
               return (
@@ -186,6 +198,7 @@ export const ClientProfileScreen: React.FC<ClientProfileScreenProps> = ({
                         <span className="text-[11px] text-gray-400 uppercase tracking-wider">
                           {item.date}
                         </span>
+                        {item.paymentStatus === 'pendente' && item.agreedPaymentDate && <span className="text-[10px] font-semibold text-amber-700">Combinado para {new Date(`${item.agreedPaymentDate}T12:00:00`).toLocaleDateString('pt-BR')}</span>}
                         {item.paymentMethod && (
                           <>
                             <span className="text-[10px] text-gray-300">•</span>
@@ -215,6 +228,7 @@ export const ClientProfileScreen: React.FC<ClientProfileScreenProps> = ({
                 </button>
               );
             })}
+            {clientHistoryItems.length === 0 && <p className="rounded-2xl bg-white p-5 text-center text-sm text-gray-500">Nenhum atendimento no histórico desta cliente.</p>}
           </div>
         </div>
       </main>

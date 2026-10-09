@@ -1,17 +1,18 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { ChevronRight, Clock } from 'lucide-react';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { useData } from '../../context/DataContext';
 import type { ScreenOpenHandler } from '../../types';
 
 interface AgendaViewDiaProps {
+  selectedDate: Date;
+  onSelectedDateChange: (date: Date) => void;
   onOpenScreen: ScreenOpenHandler;
 }
 
-export const AgendaViewDia: React.FC<AgendaViewDiaProps> = ({ onOpenScreen }) => {
+export const AgendaViewDia: React.FC<AgendaViewDiaProps> = ({ selectedDate, onSelectedDateChange, onOpenScreen }) => {
   const { appointments, agendaBlocks } = useData();
 
-  const [selectedDate, setSelectedDate] = useState(new Date(2026, 8, 5));
   const monthLabel = selectedDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => {
@@ -22,11 +23,11 @@ export const AgendaViewDia: React.FC<AgendaViewDiaProps> = ({ onOpenScreen }) =>
   const timeSlots = ['08:00', '09:00', '10:00', '11:00', '12:00', '14:00', '16:00', '16:30'];
 
   const handlePrevMonth = () => {
-    setSelectedDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+    onSelectedDateChange(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1));
   };
 
   const handleNextMonth = () => {
-    setSelectedDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    onSelectedDateChange(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1));
   };
 
   return (
@@ -62,7 +63,7 @@ export const AgendaViewDia: React.FC<AgendaViewDiaProps> = ({ onOpenScreen }) =>
             return (
               <div
                 key={date.toISOString()}
-                onClick={() => setSelectedDate(date)}
+                onClick={() => onSelectedDateChange(date)}
                 className={`flex flex-col items-center p-2 rounded-2xl w-[12%] cursor-pointer transition-all ${
                   isSelected
                     ? 'bg-[#FF85C2] text-white shadow-[0_4px_12px_rgba(255,133,194,0.3)] scale-105'
